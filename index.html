@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drafting Table">
+<meta name="theme-color" content="#141F29">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Drafting Table — Idea & Punch List Tracker</title>
+<style>
+  :root{
+    --bg:#141F29;
+    --bg-raised:#1C2B38;
+    --bg-card:#20313F;
+    --line:#2E4356;
+    --paper:#EAE3D3;
+    --paper-dim:#9BAAB6;
+    --amber:#D9A15B;
+    --amber-dim:#8A6A3F;
+    --teal:#6FA8A3;
+    --danger:#C4694F;
+    --radius:10px;
+    --mono:'IBM Plex Mono', 'SF Mono', Menlo, monospace;
+    --sans:'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; overflow-x:hidden; background:var(--bg); color:var(--paper); font-family:var(--sans); min-height:100vh;}
+  body{
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-attachment: fixed;
+    background-color: var(--bg);
+  }
+  ::selection{background:var(--amber); color:#141F29;}
+
+  a{color:var(--teal);}
+
+  .wrap{max-width:920px; margin:0 auto; padding:0 16px 120px;}
+
+  header.top{
+    position:sticky; top:0; z-index:20;
+    background:rgba(20,31,41,0.92);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+    padding:14px 16px 12px;
+  }
+  header.top .inner{max-width:920px; margin:0 auto;}
+  .brand{display:flex; align-items:baseline; gap:10px; margin-bottom:12px;}
+  .brand .mark{
+    font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--amber);
+    border:1px solid var(--amber-dim); border-radius:4px; padding:3px 6px;
+  }
+  .brand h1{font-size:19px; margin:0; font-weight:600; letter-spacing:0.2px;}
+  .brand .sub{font-family:var(--mono); font-size:11px; color:var(--paper-dim); margin-left:auto;}
+
+  .capture{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    background:var(--bg-raised); border:1px solid var(--line); border-radius:var(--radius);
+    padding:10px;
+  }
+  .capture input[type="text"]{
+    flex:1 1 220px; min-width:0;
+    background:transparent; border:none; outline:none;
+    color:var(--paper); font-size:16px; font-family:var(--sans);
+    padding:8px 6px;
+  }
+  .capture input[type="text"]::placeholder{color:var(--paper-dim);}
+  .seg{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; flex:0 0 auto;}
+  .seg button{
+    background:transparent; border:none; color:var(--paper-dim); font-family:var(--mono);
+    font-size:11.5px; letter-spacing:0.5px; padding:9px 12px; cursor:pointer; min-height:44px;
+  }
+  .seg button.active{background:var(--amber); color:#1a1208; font-weight:600;}
+  select.projsel{
+    background:var(--bg-card); color:var(--paper); border:1px solid var(--line); border-radius:8px;
+    font-family:var(--mono); font-size:12.5px; padding:9px 10px; min-height:44px; max-width:170px;
+  }
+  .addbtn{
+    background:var(--teal); color:#0f2523; border:none; border-radius:8px; font-weight:700;
+    font-size:14px; padding:10px 16px; min-height:44px; cursor:pointer; flex:0 0 auto;
+  }
+  .addbtn:active{transform:translateY(1px);}
+  .addbtn:disabled{opacity:0.4;}
+
+  nav.tabs{display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;}
+  nav.tabs button{
+    background:transparent; border:1px solid transparent; color:var(--paper-dim);
+    font-family:var(--mono); font-size:12px; letter-spacing:0.4px; padding:8px 10px;
+    border-radius:7px; cursor:pointer; min-height:38px;
+  }
+  nav.tabs button.active{color:var(--paper); border-color:var(--line); background:var(--bg-card);}
+  nav.tabs .count{color:var(--amber); margin-left:5px;}
+
+  main{padding-top:20px;}
+
+  .section-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--paper-dim);
+    text-transform:uppercase; margin:22px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{content:''; flex:1; height:1px; background:var(--line);}
+
+  .empty{
+    border:1px dashed var(--line); border-radius:var(--radius); padding:28px 18px; text-align:center;
+    color:var(--paper-dim); font-size:14px; margin-top:10px;
+  }
+  .empty b{color:var(--paper); display:block; margin-bottom:4px; font-weight:600;}
+
+  /* Idea cards */
+  .idea-card{
+    background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:10px; position:relative;
+  }
+  .idea-card .title{font-size:15px; font-weight:600; line-height:1.4; padding-right:26px;}
+  .idea-card .notes{font-size:13.5px; color:var(--paper-dim); margin-top:6px; line-height:1.5; white-space:pre-wrap;}
+  .idea-card .meta{display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;}
+  .idea-card .date{font-family:var(--mono); font-size:10.5px; color:var(--paper-dim);}
+  .row-actions{display:flex; gap:6px; margin-left:auto;}
+  .icon-btn{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim); border-radius:6px;
+    font-family:var(--mono); font-size:10.5px; padding:6px 8px; cursor:pointer; min-height:32px;
+  }
+  .icon-btn:hover{color:var(--paper); border-color:var(--paper-dim);}
+  .icon-btn.danger:hover{color:var(--danger); border-color:var(--danger);}
+  .icon-btn.promote{color:var(--amber); border-color:var(--amber-dim);}
+
+  /* Project grid */
+  .proj-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:10px; margin-top:8px;}
+  .proj-card{
+    background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; cursor:pointer; text-align:left;
+  }
+  .proj-card:hover{border-color:var(--teal);}
+  .proj-card .name{font-weight:700; font-size:15px; margin-bottom:8px;}
+  .proj-card .stats{display:flex; gap:12px; font-family:var(--mono); font-size:11px; color:var(--paper-dim);}
+  .proj-card .stats b{color:var(--amber); font-size:13px;}
+  .new-proj-card{
+    border:1px dashed var(--line); border-radius:var(--radius); padding:16px;
+    display:flex; align-items:center; justify-content:center; color:var(--paper-dim);
+    font-family:var(--mono); font-size:12.5px; cursor:pointer; background:transparent;
+    min-height:78px;
+  }
+  .new-proj-card:hover{color:var(--paper); border-color:var(--paper-dim);}
+
+  /* Project detail / punch list */
+  .back-btn{
+    background:transparent; border:none; color:var(--teal); font-family:var(--mono); font-size:12px;
+    cursor:pointer; padding:6px 0; margin-bottom:6px;
+  }
+  .proj-header{display:flex; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap;}
+  .proj-header h2{margin:0; font-size:20px;}
+  .proj-header .del-proj{margin-left:auto;}
+
+  .filterbar{display:flex; gap:6px; margin:14px 0; flex-wrap:wrap;}
+  .filterbar button{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim); border-radius:7px;
+    font-family:var(--mono); font-size:11px; padding:7px 10px; cursor:pointer; min-height:36px;
+  }
+  .filterbar button.active{background:var(--bg-card); color:var(--paper); border-color:var(--paper-dim);}
+
+  .ticket{
+    background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start;
+  }
+  .ticket .rev{
+    font-family:var(--mono); font-size:11px; color:var(--paper-dim); border:1px solid var(--line);
+    border-radius:5px; padding:3px 6px; flex:0 0 auto; margin-top:2px;
+  }
+  .ticket .body{flex:1; min-width:0;}
+  .ticket .title{font-size:14.5px; font-weight:600; line-height:1.4;}
+  .ticket.done .title{color:var(--paper-dim); text-decoration:line-through;}
+  .ticket .notes{font-size:13px; color:var(--paper-dim); margin-top:5px; white-space:pre-wrap; line-height:1.5;}
+  .ticket .meta{display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+  .dot.high{background:var(--danger);}
+  .dot.med{background:var(--amber);}
+  .dot.low{background:var(--teal);}
+  select.statussel{
+    background:var(--bg-raised); color:var(--paper); border:1px solid var(--line); border-radius:6px;
+    font-family:var(--mono); font-size:11px; padding:6px 8px; min-height:32px;
+  }
+  .pill{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
+    border:1px solid var(--line); border-radius:20px; padding:3px 8px;
+  }
+
+  .fab-note{
+    text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim);
+    margin-top:30px; padding-top:16px; border-top:1px dashed var(--line);
+  }
+
+  .toast{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--paper); color:#141F29; font-family:var(--mono); font-size:12.5px;
+    padding:10px 16px; border-radius:8px; opacity:0; transition:all 0.25s ease; z-index:50;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4); pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(10,16,21,0.72); z-index:40;
+    display:none; align-items:flex-end; justify-content:center;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--bg-raised); border:1px solid var(--line); border-radius:14px 14px 0 0;
+    width:100%; max-width:480px; padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height:88vh; overflow-y:auto;
+  }
+  @media (min-width:540px){
+    .overlay{align-items:center;}
+    .modal{border-radius:14px;}
+  }
+  .modal h3{margin:0 0 14px; font-size:16px;}
+  .modal label{display:block; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim); letter-spacing:0.5px; margin:12px 0 5px; text-transform:uppercase;}
+  .modal input[type="text"], .modal textarea, .modal select{
+    width:100%; background:var(--bg-card); border:1px solid var(--line); color:var(--paper);
+    border-radius:8px; padding:11px; font-size:16px; font-family:var(--sans);
+  }
+  .modal textarea{min-height:80px; resize:vertical; font-family:var(--sans);}
+  .modal .modal-actions{display:flex; gap:8px; margin-top:18px;}
+  .modal .modal-actions button{flex:1; min-height:44px; border-radius:8px; font-weight:600; cursor:pointer; border:1px solid var(--line);}
+  .modal .save{background:var(--teal); color:#0f2523; border:none;}
+  .modal .cancel{background:transparent; color:var(--paper-dim);}
+  .prio-seg{display:flex; gap:6px;}
+  .prio-seg button{flex:1; padding:9px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--paper-dim); font-family:var(--mono); font-size:11px; cursor:pointer;}
+  .prio-seg button.active.low{background:var(--teal); color:#0f2523; border-color:var(--teal);}
+  .prio-seg button.active.med{background:var(--amber); color:#1a1208; border-color:var(--amber);}
+  .prio-seg button.active.high{background:var(--danger); color:#2a1108; border-color:var(--danger);}
+
+  .sync-dot{width:6px; height:6px; border-radius:50%; background:var(--paper-dim); display:inline-block; margin-right:5px;}
+  .sync-dot.ok{background:var(--teal);}
+  .sync-dot.err{background:var(--danger);}
+
+  /* auth screen */
+  #authScreen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .auth-box{
+    width:100%; max-width:340px; background:var(--bg-raised); border:1px solid var(--line);
+    border-radius:14px; padding:26px 22px;
+  }
+  .auth-box .mark{
+    font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--amber);
+    border:1px solid var(--amber-dim); border-radius:4px; padding:3px 6px; display:inline-block; margin-bottom:10px;
+  }
+  .auth-box h2{margin:0 0 4px; font-size:19px;}
+  .auth-box .tagline{font-family:var(--mono); font-size:11px; color:var(--paper-dim); margin-bottom:18px;}
+  .auth-box label{display:block; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim); letter-spacing:0.5px; margin:12px 0 5px; text-transform:uppercase;}
+  .auth-box input{
+    width:100%; background:var(--bg-card); border:1px solid var(--line); color:var(--paper);
+    border-radius:8px; padding:11px; font-size:16px; font-family:var(--sans);
+  }
+  .auth-box .authbtn{
+    width:100%; margin-top:18px; background:var(--teal); color:#0f2523; border:none; border-radius:8px;
+    font-weight:700; font-size:14.5px; padding:12px; min-height:44px; cursor:pointer;
+  }
+  .auth-box .authbtn:disabled{opacity:0.5;}
+  .auth-box .switch{
+    background:transparent; border:none; color:var(--paper-dim); font-family:var(--mono); font-size:11.5px;
+    margin-top:14px; cursor:pointer; text-decoration:underline; padding:6px 0;
+  }
+  .auth-box .err{color:var(--danger); font-family:var(--mono); font-size:11.5px; margin-top:10px; min-height:14px;}
+  #signOutBtn{
+    background:transparent; border:1px solid var(--line); color:var(--paper-dim); border-radius:6px;
+    font-family:var(--mono); font-size:10px; padding:4px 8px; cursor:pointer; margin-left:8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="authScreen">
+  <div class="auth-box">
+    <span class="mark">IK CORP</span>
+    <h2 id="authTitle">Sign in</h2>
+    <div class="tagline">Drafting Table — Balance × Focus = Progress</div>
+    <label>Email</label>
+    <input type="email" id="authEmail" autocomplete="username">
+    <label>Password</label>
+    <input type="password" id="authPassword" autocomplete="current-password">
+    <button class="authbtn" id="authSubmit">Sign In</button>
+    <button class="switch" id="authSwitch">Need an account? Create one</button>
+    <div class="err" id="authErr"></div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+
+<header class="top">
+  <div class="inner">
+    <div class="brand">
+      <span class="mark">IK CORP</span>
+      <h1>Drafting Table</h1>
+      <span class="sub"><span class="sync-dot" id="syncDot"></span><span id="syncText">connecting</span><button id="signOutBtn">SIGN OUT</button></span>
+    </div>
+
+    <div class="capture">
+      <div class="seg" id="typeSeg">
+        <button data-type="idea" class="active">IDEA</button>
+        <button data-type="piece">PUNCH ITEM</button>
+      </div>
+      <select class="projsel" id="captureProject" style="display:none;"></select>
+      <input type="text" id="captureInput" placeholder="Capture a project idea…" maxlength="200">
+      <button class="addbtn" id="captureAdd">Add</button>
+    </div>
+
+    <nav class="tabs">
+      <button data-view="inbox" class="active">INBOX <span class="count" id="cntInbox">0</span></button>
+      <button data-view="projects">PROJECTS <span class="count" id="cntProjects">0</span></button>
+      <button data-view="done">COMPLETED <span class="count" id="cntDone">0</span></button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <main id="main"></main>
+  <div class="fab-note">Balance × Focus = Progress — everything here saves automatically.</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modalBody"></div>
+</div>
+
+</div><!-- /appRoot -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  const SUPABASE_URL = "https://nxdycfgkbrmxbdzqeuua.supabase.co";
+  const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE"; // grab this from any of your other IK Corp app files or the Supabase dashboard
+  const APP_NAME = "ideastracker";
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const DEFAULT_PROJECTS = [
+    "IK Corp App", "Mano Pickleball", "Ikaika Golf", "Slope-Based Green Reading", "The Desk"
+  ];
+
+  let state = {
+    items: [],      // {id, type:'idea'|'piece', project, title, notes, status, priority, created_at}
+    projects: [...DEFAULT_PROJECTS],
+    view: "inbox",
+    activeProject: null,
+    filter: "open"
+  };
+
+  let saveTimer = null;
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+  // ---------- persistence ----------
+  async function loadState(){
+    setSync("connecting","");
+    try{
+      const { data, error } = await sb.from("app_data").select("key,value").eq("app_name", APP_NAME);
+      if (error) throw error;
+      if (data && data.length){
+        data.forEach(row=>{
+          if (row.key === "items" && Array.isArray(row.value)) state.items = row.value;
+          if (row.key === "projects" && Array.isArray(row.value) && row.value.length) state.projects = row.value;
+        });
+      }
+      setSync("ok","synced");
+    }catch(e){
+      console.error(e);
+      setSync("err","offline");
+    }
+    render();
+  }
+
+  function queueSave(){
+    setSync("","saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 500);
+  }
+
+  async function doSave(){
+    try{
+      const rows = [
+        { app_name: APP_NAME, key: "items", value: state.items },
+        { app_name: APP_NAME, key: "projects", value: state.projects }
+      ];
+      const { error } = await sb.from("app_data").upsert(rows, { onConflict: "app_name,key" });
+      if (error) throw error;
+      setSync("ok","synced");
+    }catch(e){
+      console.error(e);
+      setSync("err","save failed");
+    }
+  }
+
+  function setSync(cls, text){
+    const dot = document.getElementById("syncDot");
+    const t = document.getElementById("syncText");
+    dot.className = "sync-dot" + (cls ? " "+cls : "");
+    t.textContent = text;
+  }
+
+  // ---------- toast ----------
+  let toastTimer=null;
+  function toast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>el.classList.remove("show"), 1800);
+  }
+
+  // ---------- capture bar ----------
+  const typeSeg = document.getElementById("typeSeg");
+  const captureProject = document.getElementById("captureProject");
+  const captureInput = document.getElementById("captureInput");
+  let captureType = "idea";
+
+  function refreshProjectSelect(){
+    captureProject.innerHTML = state.projects.map(p=>`<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("") +
+      `<option value="__new__">+ New project…</option>`;
+  }
+
+  typeSeg.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      typeSeg.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      captureType = btn.dataset.type;
+      captureProject.style.display = captureType === "piece" ? "" : "none";
+      captureInput.placeholder = captureType === "piece" ? "What needs to be added or adjusted?" : "Capture a project idea…";
+    });
+  });
+
+  captureProject.addEventListener("change", ()=>{
+    if (captureProject.value === "__new__"){
+      const name = prompt("New project name:");
+      if (name && name.trim()){
+        const clean = name.trim();
+        if (!state.projects.includes(clean)) state.projects.push(clean);
+        refreshProjectSelect();
+        captureProject.value = clean;
+        queueSave();
+      } else {
+        captureProject.value = state.projects[0] || "";
+      }
+    }
+  });
+
+  document.getElementById("captureAdd").addEventListener("click", addFromCapture);
+  captureInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter") addFromCapture(); });
+
+  function addFromCapture(){
+    const title = captureInput.value.trim();
+    if (!title) return;
+    const item = {
+      id: uid(),
+      type: captureType,
+      project: captureType === "piece" ? (captureProject.value || state.projects[0]) : null,
+      title,
+      notes: "",
+      status: "open",
+      priority: "med",
+      created_at: new Date().toISOString()
+    };
+    state.items.unshift(item);
+    captureInput.value = "";
+    queueSave();
+    render();
+    toast(captureType === "piece" ? "Added to punch list" : "Idea captured");
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll("nav.tabs button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      state.view = btn.dataset.view;
+      state.activeProject = null;
+      render();
+    });
+  });
+
+  // ---------- rendering ----------
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function escapeAttr(s){ return escapeHtml(s); }
+  function fmtDate(iso){
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined,{month:"short", day:"numeric"});
+  }
+
+  function projectStats(name){
+    const pieces = state.items.filter(i=>i.type==="piece" && i.project===name);
+    const open = pieces.filter(i=>i.status!=="done");
+    const done = pieces.filter(i=>i.status==="done");
+    return {total:pieces.length, open:open.length, done:done.length};
+  }
+
+  function render(){
+    updateCounts();
+    const main = document.getElementById("main");
+    if (state.view === "inbox") return renderInbox(main);
+    if (state.view === "projects") return state.activeProject ? renderProjectDetail(main, state.activeProject) : renderProjects(main);
+    if (state.view === "done") return renderDone(main);
+  }
+
+  function updateCounts(){
+    document.getElementById("cntInbox").textContent = state.items.filter(i=>i.type==="idea" && i.status!=="done").length;
+    document.getElementById("cntProjects").textContent = state.projects.length;
+    document.getElementById("cntDone").textContent = state.items.filter(i=>i.status==="done").length;
+  }
+
+  function renderInbox(main){
+    const ideas = state.items.filter(i=>i.type==="idea" && i.status!=="done")
+      .sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+    let html = `<div class="section-title">Idea Inbox</div>`;
+    if (!ideas.length){
+      html += `<div class="empty"><b>No ideas waiting.</b>Drop a new project idea into the capture bar above.</div>`;
+    } else {
+      html += ideas.map(ideaCardHtml).join("");
+    }
+    main.innerHTML = html;
+    bindIdeaCardEvents(main);
+  }
+
+  function ideaCardHtml(item){
+    return `
+      <div class="idea-card" data-id="${item.id}">
+        <div class="title">${escapeHtml(item.title)}</div>
+        ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
+        <div class="meta">
+          <span class="date">${fmtDate(item.created_at)}</span>
+          <div class="row-actions">
+            <button class="icon-btn promote" data-action="promote">→ PROJECT</button>
+            <button class="icon-btn" data-action="edit">EDIT</button>
+            <button class="icon-btn danger" data-action="delete">DEL</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function bindIdeaCardEvents(root){
+    root.querySelectorAll(".idea-card").forEach(card=>{
+      const id = card.dataset.id;
+      card.querySelector('[data-action="promote"]').addEventListener("click", ()=>promoteIdea(id));
+      card.querySelector('[data-action="edit"]').addEventListener("click", ()=>openEditModal(id));
+      card.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
+    });
+  }
+
+  function promoteIdea(id){
+    const item = state.items.find(i=>i.id===id);
+    if (!item) return;
+    const name = prompt("Promote to a new project. Project name:", item.title);
+    if (!name || !name.trim()) return;
+    const clean = name.trim();
+    if (!state.projects.includes(clean)) state.projects.push(clean);
+    item.type = "piece";
+    item.project = clean;
+    item.status = "open";
+    queueSave();
+    render();
+    toast(`Promoted to project "${clean}"`);
+  }
+
+  function renderProjects(main){
+    let html = `<div class="section-title">Projects</div><div class="proj-grid">`;
+    html += state.projects.map(p=>{
+      const s = projectStats(p);
+      return `<button class="proj-card" data-proj="${escapeAttr(p)}">
+        <div class="name">${escapeHtml(p)}</div>
+        <div class="stats"><span><b>${s.open}</b> open</span><span>${s.done} done</span></div>
+      </button>`;
+    }).join("");
+    html += `<button class="new-proj-card" id="newProjBtn">+ New Project</button>`;
+    html += `</div>`;
+    main.innerHTML = html;
+    main.querySelectorAll(".proj-card").forEach(el=>{
+      el.addEventListener("click", ()=>{ state.activeProject = el.dataset.proj; render(); });
+    });
+    document.getElementById("newProjBtn").addEventListener("click", ()=>{
+      const name = prompt("New project name:");
+      if (name && name.trim()){
+        const clean = name.trim();
+        if (!state.projects.includes(clean)) state.projects.push(clean);
+        queueSave();
+        refreshProjectSelect();
+        render();
+      }
+    });
+  }
+
+  function renderProjectDetail(main, projectName){
+    const pieces = state.items.filter(i=>i.type==="piece" && i.project===projectName);
+    let filtered = pieces;
+    if (state.filter === "open") filtered = pieces.filter(i=>i.status!=="done");
+    if (state.filter === "progress") filtered = pieces.filter(i=>i.status==="progress");
+    if (state.filter === "done") filtered = pieces.filter(i=>i.status==="done");
+
+    filtered = filtered.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at));
+
+    let html = `<button class="back-btn" id="backBtn">← ALL PROJECTS</button>
+      <div class="proj-header">
+        <h2>${escapeHtml(projectName)}</h2>
+        <button class="icon-btn danger del-proj" id="delProjBtn">DELETE PROJECT</button>
+      </div>
+      <div class="filterbar">
+        <button data-f="open" class="${state.filter==="open"?"active":""}">OPEN</button>
+        <button data-f="progress" class="${state.filter==="progress"?"active":""}">IN PROGRESS</button>
+        <button data-f="done" class="${state.filter==="done"?"active":""}">DONE</button>
+        <button data-f="all" class="${state.filter==="all"?"active":""}">ALL</button>
+      </div>`;
+
+    if (!filtered.length){
+      html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above — pick "Punch Item" and this project.</div>`;
+    } else {
+      html += filtered.map((item, idx)=>ticketHtml(item, idx+1)).join("");
+    }
+    main.innerHTML = html;
+
+    document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; render(); });
+    document.getElementById("delProjBtn").addEventListener("click", ()=>deleteProject(projectName));
+    main.querySelectorAll(".filterbar button").forEach(b=>{
+      b.addEventListener("click", ()=>{ state.filter=b.dataset.f; render(); });
+    });
+    bindTicketEvents(main);
+  }
+
+  function ticketHtml(item, revNum){
+    const revStr = "REV." + String(revNum).padStart(2,"0");
+    return `
+      <div class="ticket ${item.status==='done'?'done':''}" data-id="${item.id}">
+        <div class="rev">${revStr}</div>
+        <div class="body">
+          <div class="title">${escapeHtml(item.title)}</div>
+          ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
+          <div class="meta">
+            <span class="dot ${item.priority}"></span>
+            <select class="statussel" data-action="status">
+              <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
+              <option value="progress" ${item.status==='progress'?'selected':''}>In Progress</option>
+              <option value="done" ${item.status==='done'?'selected':''}>Done</option>
+            </select>
+            <span class="pill">${fmtDate(item.created_at)}</span>
+            <div class="row-actions">
+              <button class="icon-btn" data-action="edit">EDIT</button>
+              <button class="icon-btn danger" data-action="delete">DEL</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function bindTicketEvents(root){
+    root.querySelectorAll(".ticket").forEach(t=>{
+      const id = t.dataset.id;
+      t.querySelector('[data-action="status"]').addEventListener("change",(e)=>{
+        const item = state.items.find(i=>i.id===id);
+        item.status = e.target.value;
+        queueSave();
+        render();
+      });
+      t.querySelector('[data-action="edit"]').addEventListener("click", ()=>openEditModal(id));
+      t.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
+    });
+  }
+
+  function renderDone(main){
+    const done = state.items.filter(i=>i.status==="done").sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    let html = `<div class="section-title">Completed</div>`;
+    if (!done.length){
+      html += `<div class="empty"><b>Nothing completed yet.</b>Finished ideas and punch items will land here.</div>`;
+    } else {
+      html += done.map(item=>{
+        const label = item.type === "idea" ? "IDEA" : escapeHtml(item.project||"");
+        return `<div class="idea-card" data-id="${item.id}">
+          <div class="title" style="text-decoration:line-through; color:var(--paper-dim);">${escapeHtml(item.title)}</div>
+          <div class="meta">
+            <span class="pill">${label}</span>
+            <span class="date">${fmtDate(item.created_at)}</span>
+            <div class="row-actions">
+              <button class="icon-btn" data-action="reopen">REOPEN</button>
+              <button class="icon-btn danger" data-action="delete">DEL</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+    main.innerHTML = html;
+    main.querySelectorAll(".idea-card").forEach(card=>{
+      const id = card.dataset.id;
+      const reopenBtn = card.querySelector('[data-action="reopen"]');
+      if (reopenBtn) reopenBtn.addEventListener("click", ()=>{
+        const item = state.items.find(i=>i.id===id);
+        item.status = "open";
+        queueSave(); render(); toast("Reopened");
+      });
+      card.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
+    });
+  }
+
+  function deleteItem(id){
+    if (!confirm("Delete this item? This can't be undone.")) return;
+    state.items = state.items.filter(i=>i.id!==id);
+    queueSave();
+    render();
+    toast("Deleted");
+  }
+
+  function deleteProject(name){
+    const s = projectStats(name);
+    const msg = s.total ? `Delete "${name}" and its ${s.total} punch item(s)?` : `Delete project "${name}"?`;
+    if (!confirm(msg)) return;
+    state.projects = state.projects.filter(p=>p!==name);
+    state.items = state.items.filter(i=>!(i.type==="piece" && i.project===name));
+    state.activeProject = null;
+    queueSave();
+    refreshProjectSelect();
+    render();
+    toast("Project deleted");
+  }
+
+  // ---------- edit modal ----------
+  const overlay = document.getElementById("overlay");
+  const modalBody = document.getElementById("modalBody");
+
+  function openEditModal(id){
+    const item = state.items.find(i=>i.id===id);
+    if (!item) return;
+    const isPiece = item.type === "piece";
+    modalBody.innerHTML = `
+      <h3>Edit ${isPiece ? "Punch Item" : "Idea"}</h3>
+      <label>Title</label>
+      <input type="text" id="mTitle" value="${escapeAttr(item.title)}" maxlength="200">
+      <label>Notes</label>
+      <textarea id="mNotes">${escapeHtml(item.notes||"")}</textarea>
+      ${isPiece ? `
+      <label>Priority</label>
+      <div class="prio-seg" id="mPrio">
+        <button data-p="low" class="${item.priority==='low'?'active low':''}">LOW</button>
+        <button data-p="med" class="${item.priority==='med'?'active med':''}">MED</button>
+        <button data-p="high" class="${item.priority==='high'?'active high':''}">HIGH</button>
+      </div>
+      <label>Project</label>
+      <select id="mProject">
+        ${state.projects.map(p=>`<option value="${escapeAttr(p)}" ${p===item.project?'selected':''}>${escapeHtml(p)}</option>`).join("")}
+      </select>
+      ` : ""}
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">Save</button>
+      </div>`;
+    overlay.classList.add("show");
+
+    let selectedPrio = item.priority;
+    if (isPiece){
+      modalBody.querySelectorAll("#mPrio button").forEach(b=>{
+        b.addEventListener("click", ()=>{
+          selectedPrio = b.dataset.p;
+          modalBody.querySelectorAll("#mPrio button").forEach(x=>x.className="");
+          b.className = "active " + selectedPrio;
+        });
+      });
+    }
+
+    document.getElementById("mCancel").addEventListener("click", closeModal);
+    document.getElementById("mSave").addEventListener("click", ()=>{
+      item.title = document.getElementById("mTitle").value.trim() || item.title;
+      item.notes = document.getElementById("mNotes").value.trim();
+      if (isPiece){
+        item.priority = selectedPrio;
+        item.project = document.getElementById("mProject").value;
+      }
+      queueSave();
+      closeModal();
+      render();
+      toast("Saved");
+    });
+  }
+
+  function closeModal(){
+    overlay.classList.remove("show");
+    modalBody.innerHTML = "";
+  }
+  overlay.addEventListener("click",(e)=>{ if(e.target===overlay) closeModal(); });
+
+  // ---------- auth ----------
+  const authScreen = document.getElementById("authScreen");
+  const appRoot = document.getElementById("appRoot");
+  const authEmail = document.getElementById("authEmail");
+  const authPassword = document.getElementById("authPassword");
+  const authSubmit = document.getElementById("authSubmit");
+  const authSwitch = document.getElementById("authSwitch");
+  const authTitle = document.getElementById("authTitle");
+  const authErr = document.getElementById("authErr");
+  let authMode = "signin";
+
+  authSwitch.addEventListener("click", ()=>{
+    authMode = authMode === "signin" ? "signup" : "signin";
+    authTitle.textContent = authMode === "signin" ? "Sign in" : "Create account";
+    authSubmit.textContent = authMode === "signin" ? "Sign In" : "Create Account";
+    authSwitch.textContent = authMode === "signin" ? "Need an account? Create one" : "Already have an account? Sign in";
+    authErr.textContent = "";
+  });
+
+  authSubmit.addEventListener("click", async ()=>{
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    if (!email || !password){ authErr.textContent = "Enter an email and password."; return; }
+    authSubmit.disabled = true;
+    authErr.textContent = "";
+    try{
+      if (authMode === "signin"){
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await sb.auth.signUp({ email, password });
+        if (error) throw error;
+        authErr.textContent = "Account created. Check your email if confirmation is required, then sign in.";
+      }
+    }catch(e){
+      authErr.textContent = e.message || "Something went wrong.";
+    }
+    authSubmit.disabled = false;
+  });
+
+  document.getElementById("signOutBtn").addEventListener("click", async ()=>{
+    await sb.auth.signOut();
+  });
+
+  function showApp(){
+    authScreen.style.display = "none";
+    appRoot.style.display = "";
+    refreshProjectSelect();
+    loadState();
+  }
+  function showAuth(){
+    appRoot.style.display = "none";
+    authScreen.style.display = "flex";
+  }
+
+  sb.auth.onAuthStateChange((_event, session)=>{
+    if (session) showApp(); else showAuth();
+  });
+
+  sb.auth.getSession().then(({ data })=>{
+    if (data.session) showApp(); else showAuth();
+  });
+
+  // ---------- PWA service worker ----------
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("service-worker.js").catch(()=>{});
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
