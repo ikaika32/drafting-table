@@ -336,7 +336,7 @@
   "use strict";
 
   const SUPABASE_URL = "https://nxdycfgkbrmxbdzqeuua.supabase.co";
-  const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE"; // grab this from any of your other IK Corp app files or the Supabase dashboard
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54ZHljZmdrYnJteGJkenFldXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNDA4ODYsImV4cCI6MjA5ODYxNjg4Nn0.hPTVD2BWjZeJN6F3mNLO_yELpV2mfXqSWk-r4SYz2Yw";
   const APP_NAME = "ideastracker";
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -388,7 +388,7 @@
         { app_name: APP_NAME, key: "items", value: state.items },
         { app_name: APP_NAME, key: "projects", value: state.projects }
       ];
-      const { error } = await sb.from("app_data").upsert(rows, { onConflict: "app_name,key" });
+      const { error } = await sb.from("app_data").upsert(rows, { onConflict: "user_id,app_name,key" });
       if (error) throw error;
       setSync("ok","synced");
     }catch(e){

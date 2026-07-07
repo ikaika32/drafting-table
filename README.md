@@ -12,44 +12,38 @@ pieces you need to add or adjust on projects you're already building.
 
 ## Setup
 
-### 1. Add your Supabase anon key
-Open `index.html`, find this line near the top of the `<script>` block:
+### 1. Supabase anon key — already set
+The real anon key for your shared Supabase project is already baked into
+`index.html`. Nothing to do here.
 
-```js
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
-```
-
-Replace the placeholder with your real anon key (same one used in your
-other IK Corp apps — pull it from another app's file or the Supabase
-dashboard under Project Settings → API).
-
-The Supabase URL is already set to your shared project:
-`https://nxdycfgkbrmxbdzqeuua.supabase.co`
-
-### 2. Confirm the `app_data` table
-This app reads/writes two rows in your existing shared `app_data` table:
+### 2. The `app_data` table
+This app reads/writes two rows in your shared `app_data` table:
 
 - `app_name = 'ideastracker'`, `key = 'items'`
 - `app_name = 'ideastracker'`, `key = 'projects'`
 
-It expects columns `app_name`, `key`, `value` (jsonb), with a unique
-constraint on `(app_name, key)` so upserts work. If your table schema
-is named differently, edit the `.from("app_data")` calls in
-`index.html` accordingly (search for `app_data` — there are two spots:
-`loadState()` and `doSave()`).
+Schema (already exists in your project, reused as-is):
 
-### 3. Confirm Row Level Security
-The app signs users in via Supabase Auth (email/password) before
-touching the database, so your RLS policy on `app_data` just needs to
-allow the `authenticated` role to select/insert/update rows. If your
-other apps already have this policy in place, you're set.
+```sql
+create table app_data (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id),
+  app_name text not null,
+  key text not null,
+  value jsonb not null,
+  updated_at timestamptz not null default now(),
+  unique (user_id, app_name, key)
+);
+```
 
-### 4. Create your login
-Either:
-- Add a user manually in Supabase Dashboard → Authentication → Users, or
-- Open the app once deployed and use "Need an account? Create one"
+Row Level Security policy: owners can fully access rows where
+`auth.uid() = user_id`. Since `user_id` defaults to `auth.uid()`, you
+don't need to set it manually — it's handled automatically once you're
+signed in.
 
-### 5. Push to GitHub + Vercel
+### 3. Sign in
+This app reuses your existing IK Corp login — no new Supabase user
+needed. Just sign in with your usual email/password once it's deployed.
 ```bash
 git init
 git add .
