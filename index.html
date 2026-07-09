@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Drafting Table">
-<meta name="theme-color" content="#FBFAF7">
+<meta name="theme-color" content="#141F29">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
@@ -14,14 +14,14 @@
 <title>Drafting Table — Idea & Punch List Tracker</title>
 <style>
   :root{
-    --bg:#FBFAF7;
-    --bg-raised:#FFFFFF;
-    --bg-card:#FFFFFF;
-    --line:#E4E1D6;
-    --paper:#0F2B50;
-    --paper-dim:#7A8494;
+    --bg:#141F29;
+    --bg-raised:#1C2B38;
+    --bg-card:#20313F;
+    --line:#2E4356;
+    --paper:#EAE3D3;
+    --paper-dim:#9BAAB6;
     --amber:#ECAF41;
-    --amber-dim:#C98F2E;
+    --amber-dim:#B9822B;
     --teal:#5382BB;
     --danger:#C0503B;
     --radius:10px;
@@ -38,7 +38,7 @@
     background-attachment: fixed;
     background-color: var(--bg);
   }
-  ::selection{background:var(--amber); color:#0F2B50;}
+  ::selection{background:var(--amber); color:#141F29;}
 
   a{color:var(--teal);}
 
@@ -46,7 +46,7 @@
 
   header.top{
     position:sticky; top:0; z-index:20;
-    background:rgba(251,250,247,0.92);
+    background:rgba(20,31,41,0.92);
     backdrop-filter:blur(6px);
     border-bottom:1px solid var(--line);
     padding:14px 16px 12px;
@@ -205,7 +205,7 @@
 
   /* modal */
   .overlay{
-    position:fixed; inset:0; background:rgba(15,43,80,0.45); z-index:40;
+    position:fixed; inset:0; background:rgba(8,13,18,0.72); z-index:40;
     display:none; align-items:flex-end; justify-content:center;
   }
   .overlay.show{display:flex;}
