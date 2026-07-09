@@ -4,8 +4,8 @@
   "description": "IK Corp idea inbox and per-project punch list tracker",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#141F29",
-  "theme_color": "#141F29",
+  "background_color": "#FBFAF7",
+  "theme_color": "#FBFAF7",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
