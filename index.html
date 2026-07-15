@@ -385,6 +385,18 @@
     saveTimer = setTimeout(doSave, 500);
   }
 
+  function flushPendingSave(){
+    if (saveTimer){
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      doSave();
+    }
+  }
+  document.addEventListener("visibilitychange", ()=>{
+    if (document.visibilityState === "hidden") flushPendingSave();
+  });
+  window.addEventListener("pagehide", flushPendingSave);
+
   async function doSave(){
     try{
       const rows = [
@@ -397,6 +409,7 @@
     }catch(e){
       console.error(e);
       setSync("err","save failed");
+      toast("⚠ Save failed — check your connection");
     }
   }
 
