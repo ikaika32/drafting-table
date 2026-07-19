@@ -437,8 +437,14 @@
   let captureType = "idea";
 
   function refreshProjectSelect(){
+    const current = captureProject.value;
     captureProject.innerHTML = state.projects.map(p=>`<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("") +
       `<option value="__new__">+ New project…</option>`;
+    if (current && state.projects.includes(current)){
+      captureProject.value = current;
+    } else if (state.view === "projects" && state.activeProject && state.projects.includes(state.activeProject)){
+      captureProject.value = state.activeProject;
+    }
   }
 
   typeSeg.querySelectorAll("button").forEach(btn=>{
@@ -448,6 +454,9 @@
       captureType = btn.dataset.type;
       captureProject.style.display = captureType === "piece" ? "" : "none";
       captureInput.placeholder = captureType === "piece" ? "What needs to be added or adjusted?" : "Capture a project idea…";
+      if (captureType === "piece" && state.view === "projects" && state.activeProject){
+        captureProject.value = state.activeProject;
+      }
     });
   });
 
