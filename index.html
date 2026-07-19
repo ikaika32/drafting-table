@@ -174,7 +174,8 @@
     border-radius:5px; padding:3px 6px; flex:0 0 auto; margin-top:2px;
   }
   .ticket .body{flex:1; min-width:0;}
-  .ticket .title{font-size:14.5px; font-weight:600; line-height:1.4;}
+  .ticket .title{font-size:14.5px; font-weight:600; line-height:1.4; cursor:pointer;}
+  .ticket .title:hover{text-decoration:underline; text-underline-offset:3px;}
   .ticket.done .title{color:var(--paper-dim); text-decoration:line-through;}
   .ticket .notes{font-size:13px; color:var(--paper-dim); margin-top:5px; white-space:pre-wrap; line-height:1.5;}
   .ticket .meta{display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;}
@@ -447,16 +448,19 @@
     }
   }
 
+  function setCaptureType(type, projectName){
+    captureType = type;
+    typeSeg.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.type === type));
+    captureProject.style.display = type === "piece" ? "" : "none";
+    captureInput.placeholder = type === "piece" ? "What needs to be added or adjusted?" : "Capture a project idea…";
+    if (type === "piece" && projectName){
+      captureProject.value = projectName;
+    }
+  }
+
   typeSeg.querySelectorAll("button").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      typeSeg.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-      btn.classList.add("active");
-      captureType = btn.dataset.type;
-      captureProject.style.display = captureType === "piece" ? "" : "none";
-      captureInput.placeholder = captureType === "piece" ? "What needs to be added or adjusted?" : "Capture a project idea…";
-      if (captureType === "piece" && state.view === "projects" && state.activeProject){
-        captureProject.value = state.activeProject;
-      }
+      setCaptureType(btn.dataset.type, state.activeProject);
     });
   });
 
@@ -505,6 +509,7 @@
       btn.classList.add("active");
       state.view = btn.dataset.view;
       state.activeProject = null;
+      setCaptureType("idea");
       render();
     });
   });
@@ -607,7 +612,7 @@
     html += `</div>`;
     main.innerHTML = html;
     main.querySelectorAll(".proj-card").forEach(el=>{
-      el.addEventListener("click", ()=>{ state.activeProject = el.dataset.proj; render(); });
+      el.addEventListener("click", ()=>{ state.activeProject = el.dataset.proj; setCaptureType("piece", state.activeProject); render(); });
     });
     document.getElementById("newProjBtn").addEventListener("click", ()=>{
       const name = prompt("New project name:");
@@ -649,7 +654,7 @@
     }
     main.innerHTML = html;
 
-    document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; render(); });
+    document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; setCaptureType("idea"); render(); });
     document.getElementById("delProjBtn").addEventListener("click", ()=>deleteProject(projectName));
     main.querySelectorAll(".filterbar button").forEach(b=>{
       b.addEventListener("click", ()=>{ state.filter=b.dataset.f; render(); });
@@ -663,7 +668,7 @@
       <div class="ticket ${item.status==='done'?'done':''}" data-id="${item.id}">
         <div class="rev">${revStr}</div>
         <div class="body">
-          <div class="title">${escapeHtml(item.title)}</div>
+          <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
           ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
           <div class="meta">
             <span class="dot ${item.priority}"></span>
@@ -691,6 +696,7 @@
         queueSave();
         render();
       });
+      t.querySelector('[data-action="open-edit"]').addEventListener("click", ()=>openEditModal(id));
       t.querySelector('[data-action="edit"]').addEventListener("click", ()=>openEditModal(id));
       t.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
     });
