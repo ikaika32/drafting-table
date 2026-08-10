@@ -210,6 +210,13 @@
     background:var(--bg-raised); color:var(--paper); border:1px solid var(--line); border-radius:6px;
     font-family:var(--mono); font-size:11px; padding:6px 8px; min-height:32px;
   }
+  select.priosel{
+    border-radius:6px; font-family:var(--mono); font-size:11px; padding:6px 8px; min-height:32px;
+    border:1px solid var(--line); cursor:pointer;
+  }
+  select.priosel.prio-low{background:var(--bg-raised); color:var(--teal); border-color:var(--teal);}
+  select.priosel.prio-med{background:var(--bg-raised); color:var(--amber); border-color:var(--amber-dim);}
+  select.priosel.prio-high{background:var(--bg-raised); color:var(--danger); border-color:var(--danger);}
   .pill{
     font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
     border:1px solid var(--line); border-radius:20px; padding:3px 8px;
@@ -857,7 +864,11 @@
           <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
           ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
           <div class="meta">
-            <span class="dot ${item.priority}"></span>
+            <select class="priosel prio-${item.priority}" data-action="priority">
+              <option value="low" ${item.priority==='low'?'selected':''}>Low</option>
+              <option value="med" ${item.priority==='med'?'selected':''}>Med</option>
+              <option value="high" ${item.priority==='high'?'selected':''}>High</option>
+            </select>
             <select class="statussel" data-action="status">
               <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
               <option value="progress" ${item.status==='progress'?'selected':''}>In Progress</option>
@@ -882,6 +893,9 @@
         queueSave();
         render();
       });
+      t.querySelector('[data-action="priority"]').addEventListener("change",(e)=>{
+        setItemPriority(id, e.target.value);
+      });
       t.querySelector('[data-action="open-edit"]').addEventListener("click", ()=>openEditModal(id));
       t.querySelector('[data-action="edit"]').addEventListener("click", ()=>openEditModal(id));
       t.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
@@ -898,7 +912,11 @@
           <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
           ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
           <div class="meta">
-            <span class="dot ${item.priority}"></span>
+            <select class="priosel prio-${item.priority}" data-action="priority">
+              <option value="low" ${item.priority==='low'?'selected':''}>Low</option>
+              <option value="med" ${item.priority==='med'?'selected':''}>Med</option>
+              <option value="high" ${item.priority==='high'?'selected':''}>High</option>
+            </select>
             <span class="pill">${fmtDate(item.created_at)}</span>
             <div class="row-actions">
               <button class="icon-btn danger" data-action="delete">DEL</button>
@@ -916,6 +934,9 @@
         item.status = item.status === "done" ? "open" : "done";
         queueSave();
         render();
+      });
+      t.querySelector('[data-action="priority"]').addEventListener("change",(e)=>{
+        setItemPriority(id, e.target.value);
       });
       t.querySelector('[data-action="open-edit"]').addEventListener("click", ()=>openEditModal(id));
       t.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
@@ -964,6 +985,38 @@
     queueSave();
     render();
     toast("Deleted");
+  }
+
+  // Sets priority; jumping the item to the top of its list (same project + type) when set to High.
+  function setItemPriority(id, newPriority, opts){
+    const item = state.items.find(i=>i.id===id);
+    if (!item) return;
+    const becameHigh = newPriority === "high" && item.priority !== "high";
+    item.priority = newPriority;
+    if (becameHigh){
+      const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
+      const minOrder = siblings.length ? Math.min(...siblings.map(i=>i.order ?? 0)) : 0;
+      item.order = minOrder - 1;
+    }
+    if (!opts || !opts.skipSave){
+      queueSave();
+      render();
+    }
+  }
+
+  // Switches an item between Punch Item and Task, appending it to the bottom of its new list.
+  function setItemType(id, newType, opts){
+    const item = state.items.find(i=>i.id===id);
+    if (!item) return;
+    item.type = newType;
+    if (item.type === "task" && item.status === "progress") item.status = "open";
+    const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
+    const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
+    item.order = maxOrder + 1;
+    if (!opts || !opts.skipSave){
+      queueSave();
+      render();
+    }
   }
 
   function deleteProject(name){
@@ -1186,24 +1239,9 @@
       item.title = document.getElementById("mTitle").value.trim() || item.title;
       item.notes = document.getElementById("mNotes").value.trim();
       if (hasProjectFields){
-        const typeChanged = selectedType !== item.type;
-        const priorityBecameHigh = selectedPrio === "high" && item.priority !== "high";
-        item.priority = selectedPrio;
         item.project = document.getElementById("mProject").value;
-        item.type = selectedType;
-        // Tasks don't have an "in progress" state — fold it back to open on conversion
-        if (item.type === "task" && item.status === "progress") item.status = "open";
-
-        const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
-        if (priorityBecameHigh){
-          // Jump to the top of its list
-          const minOrder = siblings.length ? Math.min(...siblings.map(i=>i.order ?? 0)) : 0;
-          item.order = minOrder - 1;
-        } else if (typeChanged){
-          // Moving between Punch Item / Task lists — append to the end of the new list
-          const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
-          item.order = maxOrder + 1;
-        }
+        if (selectedType !== item.type) setItemType(item.id, selectedType, { skipSave: true });
+        if (selectedPrio !== item.priority) setItemPriority(item.id, selectedPrio, { skipSave: true });
       }
       queueSave();
       closeModal();
