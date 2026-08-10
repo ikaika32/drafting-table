@@ -417,8 +417,7 @@
     projects: [...DEFAULT_PROJECTS],
     view: "inbox",
     activeProject: null,
-    filter: "open",
-    taskFilter: "open"
+    filter: "open"
   };
 
   let saveTimer = null;
@@ -557,7 +556,7 @@
     let order = 0;
     if (needsProject){
       const siblingOrders = state.items
-        .filter(i=>i.type===captureType && i.project===project && typeof i.order === "number")
+        .filter(i=> (i.type==="piece" || i.type==="task") && i.project===project && typeof i.order === "number")
         .map(i=>i.order);
       order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
     }
@@ -770,28 +769,21 @@
   }
 
   function renderProjectDetail(main, projectName){
-    const pieces = state.items.filter(i=>i.type==="piece" && i.project===projectName);
-    const tasks = state.items.filter(i=>i.type==="task" && i.project===projectName);
+    const workItems = state.items.filter(i=> (i.type==="piece" || i.type==="task") && i.project===projectName);
 
-    // Backfill order for any legacy items that predate manual ordering
+    // Backfill order for any legacy items that predate manual ordering — pieces and
+    // tasks now share one order sequence so priority/drag ranking works across both.
     let needsSave = false;
-    [pieces, tasks].forEach(list=>{
-      list.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at)).forEach((item, idx)=>{
-        if (typeof item.order !== "number"){ item.order = idx; needsSave = true; }
-      });
+    workItems.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at)).forEach((item, idx)=>{
+      if (typeof item.order !== "number"){ item.order = idx; needsSave = true; }
     });
     if (needsSave) queueSave();
 
-    let filteredPieces = pieces;
-    if (state.filter === "open") filteredPieces = pieces.filter(i=>i.status!=="done");
-    if (state.filter === "progress") filteredPieces = pieces.filter(i=>i.status==="progress");
-    if (state.filter === "done") filteredPieces = pieces.filter(i=>i.status==="done");
-    filteredPieces = filteredPieces.slice().sort((a,b)=> a.order - b.order);
-
-    let filteredTasks = tasks;
-    if (state.taskFilter === "open") filteredTasks = tasks.filter(i=>i.status!=="done");
-    if (state.taskFilter === "done") filteredTasks = tasks.filter(i=>i.status==="done");
-    filteredTasks = filteredTasks.slice().sort((a,b)=> a.order - b.order);
+    let filtered = workItems;
+    if (state.filter === "open") filtered = workItems.filter(i=>i.status!=="done");
+    if (state.filter === "progress") filtered = workItems.filter(i=>i.status==="progress");
+    if (state.filter === "done") filtered = workItems.filter(i=>i.status==="done");
+    filtered = filtered.slice().sort((a,b)=> a.order - b.order);
 
     let html = `<button class="back-btn" id="backBtn">← ALL PROJECTS</button>
       <div class="proj-header">
@@ -800,7 +792,6 @@
         <button class="icon-btn danger del-proj" id="delProjBtn">DELETE PROJECT</button>
       </div>
 
-      <div class="section-title">Punch List</div>
       <div class="filterbar">
         <button data-f="open" class="${state.filter==="open"?"active":""}">OPEN</button>
         <button data-f="progress" class="${state.filter==="progress"?"active":""}">IN PROGRESS</button>
@@ -808,24 +799,14 @@
         <button data-f="all" class="${state.filter==="all"?"active":""}">ALL</button>
       </div>`;
 
-    if (!filteredPieces.length){
-      html += `<div class="empty"><b>No punch items here yet.</b>Use the capture bar above — pick "Punch Item" and this project.</div>`;
+    if (!filtered.length){
+      html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above — pick "Punch Item" or "Task" and this project.</div>`;
     } else {
-      html += `<div id="ticketList">` + filteredPieces.map((item, idx)=>ticketHtml(item, idx+1)).join("") + `</div>`;
-    }
-
-    html += `
-      <div class="section-title">Tasks</div>
-      <div class="filterbar">
-        <button data-tf="open" class="${state.taskFilter==="open"?"active":""}">OPEN</button>
-        <button data-tf="done" class="${state.taskFilter==="done"?"active":""}">DONE</button>
-        <button data-tf="all" class="${state.taskFilter==="all"?"active":""}">ALL</button>
-      </div>`;
-
-    if (!filteredTasks.length){
-      html += `<div class="empty"><b>No tasks here yet.</b>Use the capture bar above — pick "Task" and this project.</div>`;
-    } else {
-      html += `<div id="taskList">` + filteredTasks.map(item=>taskRowHtml(item)).join("") + `</div>`;
+      let revCounter = 0;
+      html += `<div id="workList">` + filtered.map(item=>{
+        if (item.type === "piece"){ revCounter++; return ticketHtml(item, revCounter); }
+        return taskRowHtml(item);
+      }).join("") + `</div>`;
     }
 
     main.innerHTML = html;
@@ -836,44 +817,21 @@
     main.querySelectorAll(".filterbar button[data-f]").forEach(b=>{
       b.addEventListener("click", ()=>{ state.filter=b.dataset.f; render(); });
     });
-    main.querySelectorAll(".filterbar button[data-tf]").forEach(b=>{
-      b.addEventListener("click", ()=>{ state.taskFilter=b.dataset.tf; render(); });
-    });
     bindTicketEvents(main);
     bindTaskEvents(main);
 
-    const ticketList = document.getElementById("ticketList");
-    if (ticketList){
+    const workList = document.getElementById("workList");
+    if (workList){
       enableDragReorder({
-        container: ticketList,
-        itemSelector: ".ticket",
+        container: workList,
+        itemSelector: ".ticket, .task-row",
         handleSelector: '[data-action="drag-handle"]',
         getId: (el)=> el.dataset.id,
         onReorder: (newIdOrder)=>{
           // Visible (filtered) items take the new order; anything currently hidden by
           // the filter keeps its relative order, appended after the visible ones.
-          const hiddenItems = pieces.filter(p=>!newIdOrder.includes(p.id)).sort((a,b)=>a.order-b.order);
-          const finalOrder = [...newIdOrder, ...hiddenItems.map(p=>p.id)];
-          finalOrder.forEach((id, idx)=>{
-            const item = state.items.find(i=>i.id===id);
-            if (item) item.order = idx;
-          });
-          queueSave();
-          render();
-        }
-      });
-    }
-
-    const taskList = document.getElementById("taskList");
-    if (taskList){
-      enableDragReorder({
-        container: taskList,
-        itemSelector: ".task-row",
-        handleSelector: '[data-action="drag-handle"]',
-        getId: (el)=> el.dataset.id,
-        onReorder: (newIdOrder)=>{
-          const hiddenItems = tasks.filter(t=>!newIdOrder.includes(t.id)).sort((a,b)=>a.order-b.order);
-          const finalOrder = [...newIdOrder, ...hiddenItems.map(t=>t.id)];
+          const hiddenItems = workItems.filter(w=>!newIdOrder.includes(w.id)).sort((a,b)=>a.order-b.order);
+          const finalOrder = [...newIdOrder, ...hiddenItems.map(w=>w.id)];
           finalOrder.forEach((id, idx)=>{
             const item = state.items.find(i=>i.id===id);
             if (item) item.order = idx;
@@ -1033,7 +991,7 @@
     const becameHigh = newPriority === "high" && item.priority !== "high";
     const becameLow = newPriority === "low" && item.priority !== "low";
     item.priority = newPriority;
-    const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
+    const siblings = state.items.filter(i=> i.id!==item.id && (i.type==="piece" || i.type==="task") && i.project===item.project);
     if (becameHigh){
       const minOrder = siblings.length ? Math.min(...siblings.map(i=>i.order ?? 0)) : 0;
       item.order = minOrder - 1;
@@ -1047,15 +1005,14 @@
     }
   }
 
-  // Switches an item between Punch Item and Task, appending it to the bottom of its new list.
+  // Switches an item between Punch Item and Task. Punch items and tasks share one
+  // combined, priority-ordered list per project, so switching type only changes how
+  // the card looks — it keeps its place in that shared order.
   function setItemType(id, newType, opts){
     const item = state.items.find(i=>i.id===id);
     if (!item) return;
     item.type = newType;
     if (item.type === "task" && item.status === "progress") item.status = "open";
-    const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
-    const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
-    item.order = maxOrder + 1;
     if (!opts || !opts.skipSave){
       queueSave();
       render();
