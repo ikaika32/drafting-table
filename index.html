@@ -1066,7 +1066,7 @@
 
   function openExportModal(projectName){
     const items = state.items
-      .filter(i=> (i.type==="piece" || i.type==="task") && i.project===projectName)
+      .filter(i=> i.type==="piece" && i.project===projectName)
       .sort((a,b)=> (a.order ?? 0) - (b.order ?? 0));
 
     if (!items.length){
