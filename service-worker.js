@@ -1,4 +1,4 @@
-const CACHE_NAME = "drafting-table-v16";
+const CACHE_NAME = "drafting-table-v17";
 const SHELL_FILES = [
   "./index.html",
   "./manifest.json",
