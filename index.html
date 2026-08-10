@@ -217,6 +217,10 @@
     font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
     border:1px solid var(--line); border-radius:20px; padding:3px 8px;
   }
+  .task-tag{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--teal);
+    border:1px solid var(--teal); border-radius:20px; padding:3px 8px;
+  }
 
   .fab-note{
     text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim);
@@ -330,8 +334,7 @@
     </div>
 
     <div class="capture">
-      <select class="projsel" id="captureProject"></select>
-      <input type="text" id="captureInput" placeholder="What needs to be added or adjusted?" maxlength="200">
+      <input type="text" id="captureInput" placeholder="New project name…" maxlength="200">
       <button class="addbtn" id="captureAdd">Add</button>
     </div>
 
@@ -453,34 +456,17 @@
   }
 
   // ---------- capture bar ----------
-  const captureProject = document.getElementById("captureProject");
   const captureInput = document.getElementById("captureInput");
 
-  function refreshProjectSelect(){
-    const current = captureProject.value;
-    captureProject.innerHTML = state.projects.map(p=>`<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("") +
-      `<option value="__new__">+ New project…</option>`;
-    if (current && state.projects.includes(current)){
-      captureProject.value = current;
-    } else if (state.activeProject && state.projects.includes(state.activeProject)){
-      captureProject.value = state.activeProject;
+  function refreshCaptureBar(){
+    if (state.view === "projects" && state.activeProject){
+      captureInput.placeholder = "What needs to be added or adjusted?";
+    } else if (state.view === "projects"){
+      captureInput.placeholder = "New project name…";
+    } else {
+      captureInput.placeholder = "Open a project to add a punch item…";
     }
   }
-
-  captureProject.addEventListener("change", ()=>{
-    if (captureProject.value === "__new__"){
-      const name = prompt("New project name:");
-      if (name && name.trim()){
-        const clean = name.trim();
-        if (!state.projects.includes(clean)) state.projects.push(clean);
-        refreshProjectSelect();
-        captureProject.value = clean;
-        queueSave();
-      } else {
-        captureProject.value = state.projects[0] || "";
-      }
-    }
-  });
 
   document.getElementById("captureAdd").addEventListener("click", addFromCapture);
   captureInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter") addFromCapture(); });
@@ -488,31 +474,43 @@
   function addFromCapture(){
     const title = captureInput.value.trim();
     if (!title) return;
-    if (!state.projects.length){
-      toast("Add a project first");
-      return;
+
+    // Inside a project: add a punch item to it. On the project list: create a new project.
+    if (state.view === "projects" && state.activeProject){
+      const project = state.activeProject;
+      const siblingOrders = state.items
+        .filter(i=> i.type==="piece" && i.project===project && typeof i.order === "number")
+        .map(i=>i.order);
+      const order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
+      const item = {
+        id: uid(),
+        type: "piece",
+        project,
+        title,
+        notes: "",
+        status: "open",
+        priority: "med",
+        order,
+        created_at: new Date().toISOString()
+      };
+      state.items.unshift(item);
+      captureInput.value = "";
+      queueSave();
+      render();
+      toast("Added to punch list");
+    } else if (state.view === "projects"){
+      if (state.projects.some(p=>p.toLowerCase() === title.toLowerCase())){
+        toast("A project with that name already exists");
+        return;
+      }
+      state.projects.push(title);
+      captureInput.value = "";
+      queueSave();
+      render();
+      toast("Project created");
+    } else {
+      toast("Open a project first");
     }
-    const project = captureProject.value || state.projects[0];
-    const siblingOrders = state.items
-      .filter(i=> i.type==="piece" && i.project===project && typeof i.order === "number")
-      .map(i=>i.order);
-    const order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
-    const item = {
-      id: uid(),
-      type: "piece",
-      project,
-      title,
-      notes: "",
-      status: "open",
-      priority: "med",
-      order,
-      created_at: new Date().toISOString()
-    };
-    state.items.unshift(item);
-    captureInput.value = "";
-    queueSave();
-    render();
-    toast("Added to punch list");
   }
 
   // ---------- tabs ----------
@@ -557,7 +555,7 @@
   }
 
   function render(){
-    refreshProjectSelect();
+    refreshCaptureBar();
     updateCounts();
     const main = document.getElementById("main");
     if (state.view === "projects") return state.activeProject ? renderProjectDetail(main, state.activeProject) : renderProjects(main);
@@ -616,7 +614,6 @@
         const clean = name.trim();
         if (!state.projects.includes(clean)) state.projects.push(clean);
         queueSave();
-        refreshProjectSelect();
         render();
       }
     });
@@ -635,7 +632,6 @@
     state.items.forEach(i=>{ if ((i.type==="piece" || i.type==="task") && i.project===oldName) i.project = clean; });
     if (state.activeProject === oldName) state.activeProject = clean;
     queueSave();
-    refreshProjectSelect();
     render();
     toast("Project renamed");
   }
@@ -727,6 +723,7 @@
             ? `<div class="notes" data-action="open-edit">${escapeHtml(item.notes)}</div>`
             : `<div class="notes notes-empty" data-action="open-edit">+ add notes</div>`}
           <div class="meta">
+            ${item.type === "task" ? `<span class="task-tag">TASK</span>` : ""}
             ${prioritySelectHtml(item.priority)}
             <select class="statussel" data-action="status">
               <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
@@ -834,7 +831,6 @@
     state.items = state.items.filter(i=>!((i.type==="piece" || i.type==="task") && i.project===name));
     state.activeProject = null;
     queueSave();
-    refreshProjectSelect();
     render();
     toast("Project deleted");
   }
@@ -1011,6 +1007,11 @@
       <label>Notes</label>
       <textarea id="mNotes">${escapeHtml(item.notes||"")}</textarea>
       ${hasProjectFields ? `
+      <label>Type</label>
+      <div class="prio-seg" id="mType">
+        <button data-t="piece" class="${item.type==='piece'?'active low':''}">PUNCH ITEM</button>
+        <button data-t="task" class="${item.type==='task'?'active low':''}">TASK</button>
+      </div>
       <label>Priority</label>
       <div class="prio-seg" id="mPrio">
         <button data-p="low" class="${item.priority==='low'?'active low':''}">LOW</button>
@@ -1029,12 +1030,20 @@
     overlay.classList.add("show");
 
     let selectedPrio = item.priority;
+    let selectedType = item.type;
     if (hasProjectFields){
       modalBody.querySelectorAll("#mPrio button").forEach(b=>{
         b.addEventListener("click", ()=>{
           selectedPrio = b.dataset.p;
           modalBody.querySelectorAll("#mPrio button").forEach(x=>x.className="");
           b.className = "active " + selectedPrio;
+        });
+      });
+      modalBody.querySelectorAll("#mType button").forEach(b=>{
+        b.addEventListener("click", ()=>{
+          selectedType = b.dataset.t;
+          modalBody.querySelectorAll("#mType button").forEach(x=>x.className="");
+          b.className = "active low";
         });
       });
     }
@@ -1045,6 +1054,7 @@
       item.notes = document.getElementById("mNotes").value.trim();
       if (hasProjectFields){
         item.project = document.getElementById("mProject").value;
+        item.type = selectedType;
         if (selectedPrio !== item.priority) setItemPriority(item.id, selectedPrio, { skipSave: true });
       }
       queueSave();
@@ -1154,7 +1164,6 @@
   function showApp(){
     authScreen.style.display = "none";
     appRoot.style.display = "";
-    refreshProjectSelect();
     loadState();
   }
   function showAuth(){
