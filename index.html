@@ -136,7 +136,18 @@
   .proj-card{
     background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
     padding:16px; cursor:pointer; text-align:left; color:var(--paper);
+    position:relative;
   }
+  .proj-card.dragging{opacity:0.5; border-color:var(--teal);}
+  .proj-card .card-handle{
+    position:absolute; top:8px; right:8px; touch-action:none; cursor:grab;
+    color:var(--paper-dim); font-size:15px; padding:4px; line-height:1;
+  }
+  .proj-card .rename-btn{
+    position:absolute; top:8px; right:34px; touch-action:none; cursor:pointer;
+    color:var(--paper-dim); font-size:12px; padding:4px; line-height:1; background:none; border:none;
+  }
+  .proj-card .rename-btn:hover{color:var(--teal);}
   .proj-card:hover{border-color:var(--teal);}
   .proj-card .name{font-weight:700; font-size:15px; margin-bottom:8px;}
   .proj-card .stats{display:flex; gap:12px; font-family:var(--mono); font-size:11px; color:var(--paper-dim);}
@@ -169,6 +180,12 @@
     background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
     padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start;
   }
+  .ticket.dragging{opacity:0.5; border-color:var(--teal);}
+  .drag-handle{
+    touch-action:none; cursor:grab; color:var(--paper-dim); font-size:16px; line-height:1;
+    padding:4px 2px; flex:0 0 auto; user-select:none; align-self:center;
+  }
+  .drag-handle:active{cursor:grabbing;}
   .ticket .rev{
     font-family:var(--mono); font-size:11px; color:var(--paper-dim); border:1px solid var(--line);
     border-radius:5px; padding:3px 6px; flex:0 0 auto; margin-top:2px;
@@ -485,14 +502,23 @@
   function addFromCapture(){
     const title = captureInput.value.trim();
     if (!title) return;
+    const project = captureType === "piece" ? (captureProject.value || state.projects[0]) : null;
+    let order = 0;
+    if (captureType === "piece"){
+      const siblingOrders = state.items
+        .filter(i=>i.type==="piece" && i.project===project && typeof i.order === "number")
+        .map(i=>i.order);
+      order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
+    }
     const item = {
       id: uid(),
       type: captureType,
-      project: captureType === "piece" ? (captureProject.value || state.projects[0]) : null,
+      project,
       title,
       notes: "",
       status: "open",
       priority: "med",
+      order,
       created_at: new Date().toISOString()
     };
     state.items.unshift(item);
@@ -594,26 +620,51 @@
     item.type = "piece";
     item.project = clean;
     item.status = "open";
+    item.order = 0;
     queueSave();
     render();
     toast(`Promoted to project "${clean}"`);
   }
 
   function renderProjects(main){
-    let html = `<div class="section-title">Projects</div><div class="proj-grid">`;
+    let html = `<div class="section-title">Projects</div><div class="proj-grid" id="projGrid">`;
     html += state.projects.map(p=>{
       const s = projectStats(p);
-      return `<button class="proj-card" data-proj="${escapeAttr(p)}">
+      return `<div class="proj-card" data-proj="${escapeAttr(p)}" tabindex="0" role="button">
+        <button class="rename-btn" data-action="rename" title="Rename project">✎</button>
+        <span class="card-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
         <div class="name">${escapeHtml(p)}</div>
         <div class="stats"><span><b>${s.open}</b> open</span><span>${s.done} done</span></div>
-      </button>`;
+      </div>`;
     }).join("");
     html += `<button class="new-proj-card" id="newProjBtn">+ New Project</button>`;
     html += `</div>`;
     main.innerHTML = html;
+
+    const grid = document.getElementById("projGrid");
     main.querySelectorAll(".proj-card").forEach(el=>{
-      el.addEventListener("click", ()=>{ state.activeProject = el.dataset.proj; setCaptureType("piece", state.activeProject); render(); });
+      el.addEventListener("click", (e)=>{
+        if (e.target.closest('[data-action]')) return;
+        state.activeProject = el.dataset.proj; setCaptureType("piece", state.activeProject); render();
+      });
+      el.querySelector('[data-action="rename"]').addEventListener("click", (e)=>{
+        e.stopPropagation();
+        renameProject(el.dataset.proj);
+      });
     });
+    enableDragReorder({
+      container: grid,
+      itemSelector: ".proj-card",
+      handleSelector: '[data-action="drag-handle"]',
+      onReorder: (newIdOrder)=>{
+        const nameByIndex = newIdOrder.map(name=>name); // data-proj values, in new DOM order
+        state.projects = nameByIndex;
+        queueSave();
+        render();
+      },
+      getId: (el)=> el.dataset.proj
+    });
+
     document.getElementById("newProjBtn").addEventListener("click", ()=>{
       const name = prompt("New project name:");
       if (name && name.trim()){
@@ -626,18 +677,45 @@
     });
   }
 
+  function renameProject(oldName){
+    const input = prompt("Rename project:", oldName);
+    if (input === null) return;
+    const clean = input.trim();
+    if (!clean || clean === oldName) return;
+    if (state.projects.some(p=>p.toLowerCase() === clean.toLowerCase())){
+      toast("A project with that name already exists");
+      return;
+    }
+    state.projects = state.projects.map(p=> p===oldName ? clean : p);
+    state.items.forEach(i=>{ if (i.type==="piece" && i.project===oldName) i.project = clean; });
+    if (state.activeProject === oldName) state.activeProject = clean;
+    queueSave();
+    refreshProjectSelect();
+    render();
+    toast("Project renamed");
+  }
+
   function renderProjectDetail(main, projectName){
     const pieces = state.items.filter(i=>i.type==="piece" && i.project===projectName);
+
+    // Backfill order for any legacy items that predate manual ordering
+    let needsSave = false;
+    pieces.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at)).forEach((item, idx)=>{
+      if (typeof item.order !== "number"){ item.order = idx; needsSave = true; }
+    });
+    if (needsSave) queueSave();
+
     let filtered = pieces;
     if (state.filter === "open") filtered = pieces.filter(i=>i.status!=="done");
     if (state.filter === "progress") filtered = pieces.filter(i=>i.status==="progress");
     if (state.filter === "done") filtered = pieces.filter(i=>i.status==="done");
 
-    filtered = filtered.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at));
+    filtered = filtered.slice().sort((a,b)=> a.order - b.order);
 
     let html = `<button class="back-btn" id="backBtn">← ALL PROJECTS</button>
       <div class="proj-header">
         <h2>${escapeHtml(projectName)}</h2>
+        <button class="icon-btn rename-proj" id="renameProjBtn">RENAME</button>
         <button class="icon-btn danger del-proj" id="delProjBtn">DELETE PROJECT</button>
       </div>
       <div class="filterbar">
@@ -650,22 +728,46 @@
     if (!filtered.length){
       html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above — pick "Punch Item" and this project.</div>`;
     } else {
-      html += filtered.map((item, idx)=>ticketHtml(item, idx+1)).join("");
+      html += `<div id="ticketList">` + filtered.map((item, idx)=>ticketHtml(item, idx+1)).join("") + `</div>`;
     }
     main.innerHTML = html;
 
     document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; setCaptureType("idea"); render(); });
     document.getElementById("delProjBtn").addEventListener("click", ()=>deleteProject(projectName));
+    document.getElementById("renameProjBtn").addEventListener("click", ()=>renameProject(projectName));
     main.querySelectorAll(".filterbar button").forEach(b=>{
       b.addEventListener("click", ()=>{ state.filter=b.dataset.f; render(); });
     });
     bindTicketEvents(main);
+
+    const ticketList = document.getElementById("ticketList");
+    if (ticketList){
+      enableDragReorder({
+        container: ticketList,
+        itemSelector: ".ticket",
+        handleSelector: '[data-action="drag-handle"]',
+        getId: (el)=> el.dataset.id,
+        onReorder: (newIdOrder)=>{
+          // Visible (filtered) items take the new order; anything currently hidden by
+          // the filter keeps its relative order, appended after the visible ones.
+          const hiddenItems = pieces.filter(p=>!newIdOrder.includes(p.id)).sort((a,b)=>a.order-b.order);
+          const finalOrder = [...newIdOrder, ...hiddenItems.map(p=>p.id)];
+          finalOrder.forEach((id, idx)=>{
+            const item = state.items.find(i=>i.id===id);
+            if (item) item.order = idx;
+          });
+          queueSave();
+          render();
+        }
+      });
+    }
   }
 
   function ticketHtml(item, revNum){
     const revStr = "REV." + String(revNum).padStart(2,"0");
     return `
       <div class="ticket ${item.status==='done'?'done':''}" data-id="${item.id}">
+        <span class="drag-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
         <div class="rev">${revStr}</div>
         <div class="body">
           <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
@@ -755,6 +857,59 @@
     refreshProjectSelect();
     render();
     toast("Project deleted");
+  }
+
+  // ---------- drag reorder (mouse + touch via Pointer Events) ----------
+  function enableDragReorder({ container, itemSelector, handleSelector, getId, onReorder }){
+    if (!container) return;
+    container.querySelectorAll(handleSelector).forEach(handle=>{
+      handle.addEventListener("pointerdown", (e)=>{
+        const item = handle.closest(itemSelector);
+        if (!item) return;
+        e.preventDefault();
+
+        let dragging = true;
+        item.classList.add("dragging");
+        try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+
+        function currentItems(){
+          return Array.from(container.querySelectorAll(itemSelector));
+        }
+
+        function onMove(ev){
+          if (!dragging) return;
+          item.style.pointerEvents = "none";
+          const el = document.elementFromPoint(ev.clientX, ev.clientY);
+          item.style.pointerEvents = "";
+          const target = el ? el.closest(itemSelector) : null;
+          if (target && target !== item && container.contains(target)){
+            const items = currentItems();
+            const dragIdx = items.indexOf(item);
+            const targetIdx = items.indexOf(target);
+            if (dragIdx < targetIdx){
+              container.insertBefore(item, target.nextSibling);
+            } else {
+              container.insertBefore(item, target);
+            }
+          }
+        }
+
+        function onUp(ev){
+          dragging = false;
+          item.classList.remove("dragging");
+          handle.removeEventListener("pointermove", onMove);
+          handle.removeEventListener("pointerup", onUp);
+          handle.removeEventListener("pointercancel", onUp);
+          try{ handle.releasePointerCapture(ev.pointerId); }catch(err){}
+          const newOrder = currentItems().map(el=>getId(el));
+          onReorder(newOrder);
+        }
+
+        handle.addEventListener("pointermove", onMove);
+        handle.addEventListener("pointerup", onUp);
+        handle.addEventListener("pointercancel", onUp);
+      });
+    });
   }
 
   // ---------- edit modal ----------
