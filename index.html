@@ -73,12 +73,6 @@
     padding:8px 6px;
   }
   .capture input[type="text"]::placeholder{color:var(--paper-dim);}
-  .seg{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; flex:0 0 auto;}
-  .seg button{
-    background:transparent; border:none; color:var(--paper-dim); font-family:var(--mono);
-    font-size:11px; letter-spacing:0.3px; padding:9px 10px; cursor:pointer; min-height:44px;
-  }
-  .seg button.active{background:var(--amber); color:#0F2B50; font-weight:600;}
   select.projsel{
     background:var(--bg-card); color:var(--paper); border:1px solid var(--line); border-radius:8px;
     font-family:var(--mono); font-size:12.5px; padding:9px 10px; min-height:44px; max-width:170px;
@@ -129,7 +123,6 @@
   }
   .icon-btn:hover{color:var(--paper); border-color:var(--paper-dim);}
   .icon-btn.danger:hover{color:var(--danger); border-color:var(--danger);}
-  .icon-btn.promote{color:var(--amber); border-color:var(--amber-dim);}
 
   /* Project grid */
   .proj-grid{display:flex; flex-direction:column; gap:10px; margin-top:8px;}
@@ -220,39 +213,10 @@
   select.priosel.prio-low{background:var(--bg-raised); color:var(--teal); border-color:var(--teal);}
   select.priosel.prio-med{background:var(--bg-raised); color:var(--amber); border-color:var(--amber-dim);}
   select.priosel.prio-high{background:var(--bg-raised); color:var(--danger); border-color:var(--danger);}
-  select.typesel{
-    border-radius:6px; font-family:var(--mono); font-size:11px; padding:6px 8px; min-height:32px;
-    border:1px solid var(--line); cursor:pointer; background:var(--bg-raised);
-  }
-  select.typesel.type-piece{color:var(--paper-dim); border-color:var(--line);}
-  select.typesel.type-task{color:var(--teal); border-color:var(--teal);}
   .pill{
     font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
     border:1px solid var(--line); border-radius:20px; padding:3px 8px;
   }
-
-  /* Task rows — deliberately simpler/flatter than punch-item tickets, checkbox-driven */
-  .task-row{
-    background:var(--bg-raised); border:1px solid var(--line); border-left:3px solid var(--teal);
-    border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; gap:10px; align-items:flex-start;
-  }
-  .task-row.dragging{
-    opacity:1; border-color:var(--teal); background:var(--bg-card);
-    box-shadow:0 10px 28px rgba(0,0,0,0.4); user-select:none;
-  }
-  .task-row .check-toggle{
-    background:none; border:none; color:var(--teal); font-size:18px; line-height:1; cursor:pointer;
-    padding:2px; flex:0 0 auto; align-self:center;
-  }
-  .task-row.done .check-toggle{color:var(--paper-dim);}
-  .task-row .body{flex:1; min-width:0;}
-  .task-row .title{font-size:14px; font-weight:600; line-height:1.4; cursor:pointer;}
-  .task-row .title:hover{text-decoration:underline; text-underline-offset:3px;}
-  .task-row.done .title{color:var(--paper-dim); text-decoration:line-through;}
-  .task-row .notes{font-size:12.5px; color:var(--paper-dim); margin-top:4px; white-space:pre-wrap; line-height:1.5; cursor:pointer;}
-  .task-row .notes:hover{text-decoration:underline; text-underline-offset:3px;}
-  .task-row .notes.notes-empty{font-style:italic; opacity:0.7;}
-  .task-row .meta{display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;}
 
   .fab-note{
     text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim);
@@ -366,19 +330,13 @@
     </div>
 
     <div class="capture">
-      <div class="seg" id="typeSeg">
-        <button data-type="idea" class="active">IDEA</button>
-        <button data-type="piece">PUNCH ITEM</button>
-        <button data-type="task">TASK</button>
-      </div>
-      <select class="projsel" id="captureProject" style="display:none;"></select>
-      <input type="text" id="captureInput" placeholder="Capture a project idea…" maxlength="200">
+      <select class="projsel" id="captureProject"></select>
+      <input type="text" id="captureInput" placeholder="What needs to be added or adjusted?" maxlength="200">
       <button class="addbtn" id="captureAdd">Add</button>
     </div>
 
     <nav class="tabs">
-      <button data-view="inbox" class="active">INBOX <span class="count" id="cntInbox">0</span></button>
-      <button data-view="projects">PROJECTS <span class="count" id="cntProjects">0</span></button>
+      <button data-view="projects" class="active">PROJECTS <span class="count" id="cntProjects">0</span></button>
       <button data-view="done">COMPLETED <span class="count" id="cntDone">0</span></button>
     </nav>
   </div>
@@ -413,9 +371,9 @@
   ];
 
   let state = {
-    items: [],      // {id, type:'idea'|'piece'|'task', project, title, notes, status, priority, order, created_at}
+    items: [],      // {id, type:'piece', project, title, notes, status, priority, order, created_at}
     projects: [...DEFAULT_PROJECTS],
-    view: "inbox",
+    view: "projects",
     activeProject: null,
     filter: "open"
   };
@@ -495,10 +453,8 @@
   }
 
   // ---------- capture bar ----------
-  const typeSeg = document.getElementById("typeSeg");
   const captureProject = document.getElementById("captureProject");
   const captureInput = document.getElementById("captureInput");
-  let captureType = "idea";
 
   function refreshProjectSelect(){
     const current = captureProject.value;
@@ -506,29 +462,10 @@
       `<option value="__new__">+ New project…</option>`;
     if (current && state.projects.includes(current)){
       captureProject.value = current;
-    } else if (state.view === "projects" && state.activeProject && state.projects.includes(state.activeProject)){
+    } else if (state.activeProject && state.projects.includes(state.activeProject)){
       captureProject.value = state.activeProject;
     }
   }
-
-  function setCaptureType(type, projectName){
-    captureType = type;
-    typeSeg.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.type === type));
-    const needsProject = type === "piece" || type === "task";
-    captureProject.style.display = needsProject ? "" : "none";
-    captureInput.placeholder = type === "piece" ? "What needs to be added or adjusted?"
-      : type === "task" ? "What do you need to do?"
-      : "Capture a project idea…";
-    if (needsProject && projectName){
-      captureProject.value = projectName;
-    }
-  }
-
-  typeSeg.querySelectorAll("button").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      setCaptureType(btn.dataset.type, state.activeProject);
-    });
-  });
 
   captureProject.addEventListener("change", ()=>{
     if (captureProject.value === "__new__"){
@@ -551,18 +488,18 @@
   function addFromCapture(){
     const title = captureInput.value.trim();
     if (!title) return;
-    const needsProject = captureType === "piece" || captureType === "task";
-    const project = needsProject ? (captureProject.value || state.projects[0]) : null;
-    let order = 0;
-    if (needsProject){
-      const siblingOrders = state.items
-        .filter(i=> (i.type==="piece" || i.type==="task") && i.project===project && typeof i.order === "number")
-        .map(i=>i.order);
-      order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
+    if (!state.projects.length){
+      toast("Add a project first");
+      return;
     }
+    const project = captureProject.value || state.projects[0];
+    const siblingOrders = state.items
+      .filter(i=> i.type==="piece" && i.project===project && typeof i.order === "number")
+      .map(i=>i.order);
+    const order = siblingOrders.length ? Math.max(...siblingOrders) + 1 : 0;
     const item = {
       id: uid(),
-      type: captureType,
+      type: "piece",
       project,
       title,
       notes: "",
@@ -575,8 +512,7 @@
     captureInput.value = "";
     queueSave();
     render();
-    const label = captureType === "piece" ? "Added to punch list" : captureType === "task" ? "Task added" : "Idea captured";
-    toast(label);
+    toast("Added to punch list");
   }
 
   // ---------- tabs ----------
@@ -586,7 +522,6 @@
       btn.classList.add("active");
       state.view = btn.dataset.view;
       state.activeProject = null;
-      setCaptureType("idea");
       render();
     });
   });
@@ -612,13 +547,6 @@
     return `<select class="priosel prio-${current}" data-action="priority">${opts}</select>`;
   }
 
-  function typeSelectHtml(current){
-    const opts = [
-      ["piece","Punch"], ["task","Task"]
-    ].map(([val,label])=> `<option value="${val}" ${current===val?'selected':''}>${label}</option>`).join("");
-    return `<select class="typesel type-${current}" data-action="type">${opts}</select>`;
-  }
-
   function projectStats(name){
     const pieces = state.items.filter(i=>i.type==="piece" && i.project===name);
     const tasks = state.items.filter(i=>i.type==="task" && i.project===name);
@@ -632,69 +560,13 @@
     refreshProjectSelect();
     updateCounts();
     const main = document.getElementById("main");
-    if (state.view === "inbox") return renderInbox(main);
     if (state.view === "projects") return state.activeProject ? renderProjectDetail(main, state.activeProject) : renderProjects(main);
     if (state.view === "done") return renderDone(main);
   }
 
   function updateCounts(){
-    document.getElementById("cntInbox").textContent = state.items.filter(i=>i.type==="idea" && i.status!=="done").length;
     document.getElementById("cntProjects").textContent = state.projects.length;
     document.getElementById("cntDone").textContent = state.items.filter(i=>i.status==="done").length;
-  }
-
-  function renderInbox(main){
-    const ideas = state.items.filter(i=>i.type==="idea" && i.status!=="done")
-      .sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
-    let html = `<div class="section-title">Idea Inbox</div>`;
-    if (!ideas.length){
-      html += `<div class="empty"><b>No ideas waiting.</b>Drop a new project idea into the capture bar above.</div>`;
-    } else {
-      html += ideas.map(ideaCardHtml).join("");
-    }
-    main.innerHTML = html;
-    bindIdeaCardEvents(main);
-  }
-
-  function ideaCardHtml(item){
-    return `
-      <div class="idea-card" data-id="${item.id}">
-        <div class="title">${escapeHtml(item.title)}</div>
-        ${item.notes ? `<div class="notes">${escapeHtml(item.notes)}</div>` : ""}
-        <div class="meta">
-          <span class="date">${fmtDate(item.created_at)}</span>
-          <div class="row-actions">
-            <button class="icon-btn promote" data-action="promote">→ PROJECT</button>
-            <button class="icon-btn" data-action="edit">EDIT</button>
-            <button class="icon-btn danger" data-action="delete">DEL</button>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function bindIdeaCardEvents(root){
-    root.querySelectorAll(".idea-card").forEach(card=>{
-      const id = card.dataset.id;
-      card.querySelector('[data-action="promote"]').addEventListener("click", ()=>promoteIdea(id));
-      card.querySelector('[data-action="edit"]').addEventListener("click", ()=>openEditModal(id));
-      card.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
-    });
-  }
-
-  function promoteIdea(id){
-    const item = state.items.find(i=>i.id===id);
-    if (!item) return;
-    const name = prompt("Promote to a new project. Project name:", item.title);
-    if (!name || !name.trim()) return;
-    const clean = name.trim();
-    if (!state.projects.includes(clean)) state.projects.push(clean);
-    item.type = "piece";
-    item.project = clean;
-    item.status = "open";
-    item.order = 0;
-    queueSave();
-    render();
-    toast(`Promoted to project "${clean}"`);
   }
 
   function renderProjects(main){
@@ -718,7 +590,7 @@
     main.querySelectorAll(".proj-card").forEach(el=>{
       el.addEventListener("click", (e)=>{
         if (e.target.closest('[data-action]')) return;
-        state.activeProject = el.dataset.proj; setCaptureType("piece", state.activeProject); render();
+        state.activeProject = el.dataset.proj; render();
       });
       el.querySelector('[data-action="rename"]').addEventListener("click", (e)=>{
         e.stopPropagation();
@@ -771,8 +643,7 @@
   function renderProjectDetail(main, projectName){
     const workItems = state.items.filter(i=> (i.type==="piece" || i.type==="task") && i.project===projectName);
 
-    // Backfill order for any legacy items that predate manual ordering — pieces and
-    // tasks now share one order sequence so priority/drag ranking works across both.
+    // Backfill order for any legacy items that predate manual ordering
     let needsSave = false;
     workItems.slice().sort((a,b)=> new Date(a.created_at)-new Date(b.created_at)).forEach((item, idx)=>{
       if (typeof item.order !== "number"){ item.order = idx; needsSave = true; }
@@ -788,6 +659,7 @@
     let html = `<button class="back-btn" id="backBtn">← ALL PROJECTS</button>
       <div class="proj-header">
         <h2>${escapeHtml(projectName)}</h2>
+        <button class="icon-btn" id="exportProjBtn">EXPORT</button>
         <button class="icon-btn rename-proj" id="renameProjBtn">RENAME</button>
         <button class="icon-btn danger del-proj" id="delProjBtn">DELETE PROJECT</button>
       </div>
@@ -800,31 +672,31 @@
       </div>`;
 
     if (!filtered.length){
-      html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above — pick "Punch Item" or "Task" and this project.</div>`;
+      html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above to add a punch item to this project.</div>`;
     } else {
       let revCounter = 0;
       html += `<div id="workList">` + filtered.map(item=>{
-        if (item.type === "piece"){ revCounter++; return ticketHtml(item, revCounter); }
-        return taskRowHtml(item);
+        revCounter++;
+        return ticketHtml(item, revCounter);
       }).join("") + `</div>`;
     }
 
     main.innerHTML = html;
 
-    document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; setCaptureType("idea"); render(); });
+    document.getElementById("backBtn").addEventListener("click", ()=>{ state.activeProject=null; render(); });
     document.getElementById("delProjBtn").addEventListener("click", ()=>deleteProject(projectName));
     document.getElementById("renameProjBtn").addEventListener("click", ()=>renameProject(projectName));
+    document.getElementById("exportProjBtn").addEventListener("click", ()=>openExportModal(projectName));
     main.querySelectorAll(".filterbar button[data-f]").forEach(b=>{
       b.addEventListener("click", ()=>{ state.filter=b.dataset.f; render(); });
     });
     bindTicketEvents(main);
-    bindTaskEvents(main);
 
     const workList = document.getElementById("workList");
     if (workList){
       enableDragReorder({
         container: workList,
-        itemSelector: ".ticket, .task-row",
+        itemSelector: ".ticket",
         handleSelector: '[data-action="drag-handle"]',
         getId: (el)=> el.dataset.id,
         onReorder: (newIdOrder)=>{
@@ -855,7 +727,6 @@
             ? `<div class="notes" data-action="open-edit">${escapeHtml(item.notes)}</div>`
             : `<div class="notes notes-empty" data-action="open-edit">+ add notes</div>`}
           <div class="meta">
-            ${typeSelectHtml(item.type)}
             ${prioritySelectHtml(item.priority)}
             <select class="statussel" data-action="status">
               <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
@@ -884,9 +755,6 @@
       t.querySelector('[data-action="priority"]').addEventListener("change",(e)=>{
         setItemPriority(id, e.target.value);
       });
-      t.querySelector('[data-action="type"]').addEventListener("change",(e)=>{
-        setItemType(id, e.target.value);
-      });
       t.querySelectorAll('[data-action="open-edit"]').forEach(el=>{
         el.addEventListener("click", ()=>openEditModal(id));
       });
@@ -895,61 +763,14 @@
     });
   }
 
-  function taskRowHtml(item){
-    const checked = item.status === "done";
-    return `
-      <div class="task-row ${checked?'done':''}" data-id="${item.id}">
-        <span class="drag-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
-        <button class="check-toggle" data-action="toggle-done" title="Mark done">${checked ? '☑' : '☐'}</button>
-        <div class="body">
-          <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
-          ${item.notes
-            ? `<div class="notes" data-action="open-edit">${escapeHtml(item.notes)}</div>`
-            : `<div class="notes notes-empty" data-action="open-edit">+ add notes</div>`}
-          <div class="meta">
-            ${typeSelectHtml(item.type)}
-            ${prioritySelectHtml(item.priority)}
-            <span class="pill">${fmtDate(item.created_at)}</span>
-            <div class="row-actions">
-              <button class="icon-btn danger" data-action="delete">DEL</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function bindTaskEvents(root){
-    root.querySelectorAll(".task-row").forEach(t=>{
-      const id = t.dataset.id;
-      t.querySelector('[data-action="toggle-done"]').addEventListener("click", ()=>{
-        const item = state.items.find(i=>i.id===id);
-        item.status = item.status === "done" ? "open" : "done";
-        queueSave();
-        render();
-      });
-      t.querySelector('[data-action="priority"]').addEventListener("change",(e)=>{
-        setItemPriority(id, e.target.value);
-      });
-      t.querySelector('[data-action="type"]').addEventListener("change",(e)=>{
-        setItemType(id, e.target.value);
-      });
-      t.querySelectorAll('[data-action="open-edit"]').forEach(el=>{
-        el.addEventListener("click", ()=>openEditModal(id));
-      });
-      t.querySelector('[data-action="delete"]').addEventListener("click", ()=>deleteItem(id));
-    });
-  }
-
   function renderDone(main){
     const done = state.items.filter(i=>i.status==="done").sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     let html = `<div class="section-title">Completed</div>`;
     if (!done.length){
-      html += `<div class="empty"><b>Nothing completed yet.</b>Finished ideas, punch items, and tasks will land here.</div>`;
+      html += `<div class="empty"><b>Nothing completed yet.</b>Finished punch items will land here.</div>`;
     } else {
       html += done.map(item=>{
-        const label = item.type === "idea" ? "IDEA"
-          : item.type === "task" ? `TASK · ${escapeHtml(item.project||"")}`
-          : escapeHtml(item.project||"");
+        const label = escapeHtml(item.project||"");
         return `<div class="idea-card" data-id="${item.id}">
           <div class="title" style="text-decoration:line-through; color:var(--paper-dim);">${escapeHtml(item.title)}</div>
           <div class="meta">
@@ -999,20 +820,6 @@
       const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
       item.order = maxOrder + 1;
     }
-    if (!opts || !opts.skipSave){
-      queueSave();
-      render();
-    }
-  }
-
-  // Switches an item between Punch Item and Task. Punch items and tasks share one
-  // combined, priority-ordered list per project, so switching type only changes how
-  // the card looks — it keeps its place in that shared order.
-  function setItemType(id, newType, opts){
-    const item = state.items.find(i=>i.id===id);
-    if (!item) return;
-    item.type = newType;
-    if (item.type === "task" && item.status === "progress") item.status = "open";
     if (!opts || !opts.skipSave){
       queueSave();
       render();
@@ -1197,19 +1004,13 @@
     const item = state.items.find(i=>i.id===id);
     if (!item) return;
     const hasProjectFields = item.type === "piece" || item.type === "task";
-    const typeLabel = item.type === "piece" ? "Punch Item" : item.type === "task" ? "Task" : "Idea";
     modalBody.innerHTML = `
-      <h3>Edit ${typeLabel}</h3>
+      <h3>Edit Punch Item</h3>
       <label>Title</label>
       <input type="text" id="mTitle" value="${escapeAttr(item.title)}" maxlength="200">
       <label>Notes</label>
       <textarea id="mNotes">${escapeHtml(item.notes||"")}</textarea>
       ${hasProjectFields ? `
-      <label>Type</label>
-      <div class="prio-seg" id="mType">
-        <button data-t="piece" class="${item.type==='piece'?'active low':''}">PUNCH ITEM</button>
-        <button data-t="task" class="${item.type==='task'?'active low':''}">TASK</button>
-      </div>
       <label>Priority</label>
       <div class="prio-seg" id="mPrio">
         <button data-p="low" class="${item.priority==='low'?'active low':''}">LOW</button>
@@ -1228,20 +1029,12 @@
     overlay.classList.add("show");
 
     let selectedPrio = item.priority;
-    let selectedType = item.type;
     if (hasProjectFields){
       modalBody.querySelectorAll("#mPrio button").forEach(b=>{
         b.addEventListener("click", ()=>{
           selectedPrio = b.dataset.p;
           modalBody.querySelectorAll("#mPrio button").forEach(x=>x.className="");
           b.className = "active " + selectedPrio;
-        });
-      });
-      modalBody.querySelectorAll("#mType button").forEach(b=>{
-        b.addEventListener("click", ()=>{
-          selectedType = b.dataset.t;
-          modalBody.querySelectorAll("#mType button").forEach(x=>x.className="");
-          b.className = "active low";
         });
       });
     }
@@ -1252,13 +1045,59 @@
       item.notes = document.getElementById("mNotes").value.trim();
       if (hasProjectFields){
         item.project = document.getElementById("mProject").value;
-        if (selectedType !== item.type) setItemType(item.id, selectedType, { skipSave: true });
         if (selectedPrio !== item.priority) setItemPriority(item.id, selectedPrio, { skipSave: true });
       }
       queueSave();
       closeModal();
       render();
       toast("Saved");
+    });
+  }
+
+  function openExportModal(projectName){
+    const items = state.items
+      .filter(i=> (i.type==="piece" || i.type==="task") && i.project===projectName)
+      .sort((a,b)=> (a.order ?? 0) - (b.order ?? 0));
+
+    if (!items.length){
+      toast("No punch items to export");
+      return;
+    }
+
+    const lines = [`Please help me implement the following punch list for "${projectName}":`, ""];
+    items.forEach((item, idx)=>{
+      const prio = (item.priority || "med").toUpperCase();
+      const statusLabel = item.status === "done" ? "Done" : item.status === "progress" ? "In Progress" : "Open";
+      lines.push(`${idx+1}. [${prio}] ${item.title}`);
+      lines.push(`   Status: ${statusLabel}`);
+      if (item.notes) lines.push(`   Notes: ${item.notes}`);
+      lines.push("");
+    });
+    const text = lines.join("\n").trim();
+
+    modalBody.innerHTML = `
+      <h3>Export Punch List</h3>
+      <label>Copy this and paste it into Claude</label>
+      <textarea id="mExport" readonly style="min-height:240px; font-family:var(--mono); font-size:12.5px;">${escapeHtml(text)}</textarea>
+      <div class="modal-actions">
+        <button class="cancel" id="mExportClose">Close</button>
+        <button class="save" id="mExportCopy">Copy to Clipboard</button>
+      </div>`;
+    overlay.classList.add("show");
+
+    document.getElementById("mExportClose").addEventListener("click", closeModal);
+    document.getElementById("mExportCopy").addEventListener("click", async ()=>{
+      const ta = document.getElementById("mExport");
+      try{
+        await navigator.clipboard.writeText(text);
+        toast("Copied to clipboard");
+      }catch(e){
+        ta.removeAttribute("readonly");
+        ta.select();
+        document.execCommand("copy");
+        ta.setAttribute("readonly", "true");
+        toast("Copied to clipboard");
+      }
     });
   }
 
