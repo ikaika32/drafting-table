@@ -1103,6 +1103,8 @@
         drag = {
           pointerId,
           grabOffsetY: clientY - startRect.top,
+          startClientY: clientY,
+          moved: false,
           translate: 0,
           lastClientY: clientY,
           rafPending: false,
@@ -1122,6 +1124,7 @@
         if (!drag || ev.pointerId !== drag.pointerId) return;
         ev.preventDefault();
         drag.lastClientY = ev.clientY;
+        if (!drag.moved && Math.abs(ev.clientY - drag.startClientY) > 3) drag.moved = true;
         if (!drag.rafPending){
           drag.rafPending = true;
           requestAnimationFrame(processFrame);
@@ -1168,7 +1171,16 @@
         item.removeEventListener("pointercancel", onUp);
         const startOrder = drag.startOrder;
         const finalOrder = itemsIn().map(getId);
+        const moved = drag.moved;
         drag = null;
+        if (moved){
+          // The browser still fires a "click" on whatever was under the pointer right
+          // after this drag ends. Swallow just that one click so dropping a card doesn't
+          // also trigger a "tap to open/edit" handler on itself or a child element.
+          const suppressClick = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); };
+          item.addEventListener("click", suppressClick, { capture: true, once: true });
+          setTimeout(()=>{ item.removeEventListener("click", suppressClick, { capture: true }); }, 400);
+        }
         const changed = startOrder.length !== finalOrder.length || startOrder.some((id,i)=>id!==finalOrder[i]);
         if (changed) onReorder(finalOrder);
       }
