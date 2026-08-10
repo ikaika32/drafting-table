@@ -217,6 +217,12 @@
   select.priosel.prio-low{background:var(--bg-raised); color:var(--teal); border-color:var(--teal);}
   select.priosel.prio-med{background:var(--bg-raised); color:var(--amber); border-color:var(--amber-dim);}
   select.priosel.prio-high{background:var(--bg-raised); color:var(--danger); border-color:var(--danger);}
+  select.typesel{
+    border-radius:6px; font-family:var(--mono); font-size:11px; padding:6px 8px; min-height:32px;
+    border:1px solid var(--line); cursor:pointer; background:var(--bg-raised);
+  }
+  select.typesel.type-piece{color:var(--paper-dim); border-color:var(--line);}
+  select.typesel.type-task{color:var(--teal); border-color:var(--teal);}
   .pill{
     font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
     border:1px solid var(--line); border-radius:20px; padding:3px 8px;
@@ -545,6 +551,13 @@
     return `<select class="priosel prio-${current}" data-action="priority">${opts}</select>`;
   }
 
+  function typeSelectHtml(current){
+    const opts = [
+      ["piece","Punch"], ["task","Task"]
+    ].map(([val,label])=> `<option value="${val}" ${current===val?'selected':''}>${label}</option>`).join("");
+    return `<select class="typesel type-${current}" data-action="type">${opts}</select>`;
+  }
+
   function projectStats(name){
     const pieces = state.items.filter(i=>i.type==="piece" && i.project===name);
     const tasks = state.items.filter(i=>i.type==="task" && i.project===name);
@@ -671,8 +684,10 @@
       html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above to add a punch item to this project.</div>`;
     } else {
       let revCounter = 0;
+      let taskCounter = 0;
       html += `<div id="workList">` + filtered.map(item=>{
-        if (item.type !== "task") revCounter++;
+        if (item.type === "task"){ taskCounter++; return ticketHtml(item, taskCounter); }
+        revCounter++;
         return ticketHtml(item, revCounter);
       }).join("") + `</div>`;
     }
@@ -713,7 +728,7 @@
 
   function ticketHtml(item, revNum){
     const isTask = item.type === "task";
-    const revStr = isTask ? "TASK" : "REV." + String(revNum).padStart(2,"0");
+    const revStr = (isTask ? "TASK." : "REV.") + String(revNum).padStart(2,"0");
     return `
       <div class="ticket ${item.status==='done'?'done':''} ${isTask?'task-item':''}" data-id="${item.id}">
         <span class="drag-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
@@ -724,6 +739,7 @@
             ? `<div class="notes" data-action="open-edit">${escapeHtml(item.notes)}</div>`
             : `<div class="notes notes-empty" data-action="open-edit">+ add notes</div>`}
           <div class="meta">
+            ${typeSelectHtml(item.type)}
             ${prioritySelectHtml(item.priority)}
             <select class="statussel" data-action="status">
               <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
@@ -751,6 +767,9 @@
       });
       t.querySelector('[data-action="priority"]').addEventListener("change",(e)=>{
         setItemPriority(id, e.target.value);
+      });
+      t.querySelector('[data-action="type"]').addEventListener("change",(e)=>{
+        setItemType(id, e.target.value);
       });
       t.querySelectorAll('[data-action="open-edit"]').forEach(el=>{
         el.addEventListener("click", ()=>openEditModal(id));
@@ -817,6 +836,20 @@
       const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
       item.order = maxOrder + 1;
     }
+    if (!opts || !opts.skipSave){
+      queueSave();
+      render();
+    }
+  }
+
+  // Switches an item between Punch Item and Task. They share one combined,
+  // priority-ordered list per project, so this just changes how the card looks
+  // and how it numbers/labels itself — it keeps its place in that shared order.
+  function setItemType(id, newType, opts){
+    const item = state.items.find(i=>i.id===id);
+    if (!item) return;
+    item.type = newType;
+    if (item.type === "task" && item.status === "progress") item.status = "open";
     if (!opts || !opts.skipSave){
       queueSave();
       render();
@@ -899,23 +932,27 @@
 
         const dragRect = item.getBoundingClientRect();
         const dragCenter = dragRect.top + dragRect.height/2;
-        for (const sib of itemsIn()){
-          if (sib === item) continue;
+
+        // Find the correct final slot directly (rather than swapping one neighbor at
+        // a time), so a fast drag lands in the right place in a single frame instead
+        // of visibly catching up over several frames.
+        const siblings = itemsIn().filter(el=>el!==item);
+        let insertBeforeEl = null;
+        for (const sib of siblings){
           const sibRect = sib.getBoundingClientRect();
           const sibCenter = sibRect.top + sibRect.height/2;
-          const dragPrecedesSib = !!(item.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_FOLLOWING);
-          if (dragPrecedesSib && dragCenter > sibCenter){
-            swap(sib, true, clientY); break;
-          } else if (!dragPrecedesSib && dragCenter < sibCenter){
-            swap(sib, false, clientY); break;
+          if (dragCenter < sibCenter){
+            insertBeforeEl = sib;
+            break;
           }
         }
-      }
-
-      function swap(sib, movingDown, clientY){
-        if (movingDown) container.insertBefore(item, sib.nextSibling);
-        else container.insertBefore(item, sib);
-        applyTransform(clientY);
+        const currentNext = item.nextElementSibling;
+        const needsMove = insertBeforeEl ? (currentNext !== insertBeforeEl) : (currentNext !== null);
+        if (needsMove){
+          if (insertBeforeEl) container.insertBefore(item, insertBeforeEl);
+          else container.appendChild(item);
+          applyTransform(clientY);
+        }
       }
 
       function onUp(){
