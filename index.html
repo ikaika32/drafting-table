@@ -177,6 +177,9 @@
     background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
     padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start;
   }
+  .ticket.task-item{
+    background:var(--bg-raised); border-left:3px solid var(--teal);
+  }
   .ticket.dragging{
     opacity:1; border-color:var(--teal); background:var(--bg-raised);
     box-shadow:0 10px 28px rgba(0,0,0,0.4); transform-origin:center; user-select:none;
@@ -190,6 +193,7 @@
     font-family:var(--mono); font-size:11px; color:var(--paper-dim); border:1px solid var(--line);
     border-radius:5px; padding:3px 6px; flex:0 0 auto; margin-top:2px;
   }
+  .ticket.task-item .rev{color:var(--teal); border-color:var(--teal);}
   .ticket .body{flex:1; min-width:0;}
   .ticket .title{font-size:14.5px; font-weight:600; line-height:1.4; cursor:pointer;}
   .ticket .title:hover{text-decoration:underline; text-underline-offset:3px;}
@@ -216,10 +220,6 @@
   .pill{
     font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--paper-dim);
     border:1px solid var(--line); border-radius:20px; padding:3px 8px;
-  }
-  .task-tag{
-    font-family:var(--mono); font-size:10px; letter-spacing:0.5px; color:var(--teal);
-    border:1px solid var(--teal); border-radius:20px; padding:3px 8px;
   }
 
   .fab-note{
@@ -672,7 +672,7 @@
     } else {
       let revCounter = 0;
       html += `<div id="workList">` + filtered.map(item=>{
-        revCounter++;
+        if (item.type !== "task") revCounter++;
         return ticketHtml(item, revCounter);
       }).join("") + `</div>`;
     }
@@ -712,9 +712,10 @@
   }
 
   function ticketHtml(item, revNum){
-    const revStr = "REV." + String(revNum).padStart(2,"0");
+    const isTask = item.type === "task";
+    const revStr = isTask ? "TASK" : "REV." + String(revNum).padStart(2,"0");
     return `
-      <div class="ticket ${item.status==='done'?'done':''}" data-id="${item.id}">
+      <div class="ticket ${item.status==='done'?'done':''} ${isTask?'task-item':''}" data-id="${item.id}">
         <span class="drag-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
         <div class="rev">${revStr}</div>
         <div class="body">
@@ -723,7 +724,6 @@
             ? `<div class="notes" data-action="open-edit">${escapeHtml(item.notes)}</div>`
             : `<div class="notes notes-empty" data-action="open-edit">+ add notes</div>`}
           <div class="meta">
-            ${item.type === "task" ? `<span class="task-tag">TASK</span>` : ""}
             ${prioritySelectHtml(item.priority)}
             <select class="statussel" data-action="status">
               <option value="open" ${item.status==='open'?'selected':''}>Backlog</option>
