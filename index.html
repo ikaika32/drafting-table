@@ -992,14 +992,29 @@
     function attach(item){
       let drag = null;
 
-      function beginDrag(e){
-        drag = { pointerId: e.pointerId, startY: e.clientY, translate: 0, startOrder: itemsIn().map(getId) };
+      // Keep the item's visual position locked to the pointer, regardless of how
+      // many times its underlying DOM position has changed from swaps.
+      function applyTransform(clientY){
+        const rectNow = item.getBoundingClientRect();
+        const layoutTop = rectNow.top - drag.translate; // top with transform backed out
+        const desiredTop = clientY - drag.grabOffsetY;
+        drag.translate = desiredTop - layoutTop;
+        item.style.transform = `translateY(${drag.translate}px)`;
+      }
+
+      function beginDrag(pointerId, clientY){
+        const startRect = item.getBoundingClientRect();
+        drag = {
+          pointerId,
+          grabOffsetY: clientY - startRect.top,
+          translate: 0,
+          startOrder: itemsIn().map(getId)
+        };
         item.classList.add("dragging");
         item.style.zIndex = 60;
         item.style.transition = "none";
         item.style.touchAction = "none";
-        try{ item.setPointerCapture(e.pointerId); }catch(err){}
-        itemsIn().forEach(el=>{ if (el!==item) el.style.transition = "transform 160ms ease"; });
+        try{ item.setPointerCapture(pointerId); }catch(err){}
         item.addEventListener("pointermove", onMove);
         item.addEventListener("pointerup", onUp);
         item.addEventListener("pointercancel", onUp);
@@ -1008,8 +1023,7 @@
       function onMove(ev){
         if (!drag || ev.pointerId !== drag.pointerId) return;
         ev.preventDefault();
-        drag.translate = ev.clientY - drag.startY;
-        item.style.transform = `translateY(${drag.translate}px)`;
+        applyTransform(ev.clientY);
 
         const dragRect = item.getBoundingClientRect();
         const dragCenter = dragRect.top + dragRect.height/2;
@@ -1019,21 +1033,37 @@
           const sibCenter = sibRect.top + sibRect.height/2;
           const dragPrecedesSib = !!(item.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_FOLLOWING);
           if (dragPrecedesSib && dragCenter > sibCenter){
-            swap(sib, true); break;
+            swap(sib, true, ev.clientY); break;
           } else if (!dragPrecedesSib && dragCenter < sibCenter){
-            swap(sib, false); break;
+            swap(sib, false, ev.clientY); break;
           }
         }
       }
 
-      function swap(sib, movingDown){
-        const beforeTop = item.getBoundingClientRect().top;
+      function swap(sib, movingDown, clientY){
+        const before = new Map(itemsIn().map(el=>[el, el.getBoundingClientRect()]));
+
         if (movingDown) container.insertBefore(item, sib.nextSibling);
         else container.insertBefore(item, sib);
-        item.style.transform = "none";
-        const afterTop = item.getBoundingClientRect().top;
-        drag.translate += (beforeTop - afterTop);
-        item.style.transform = `translateY(${drag.translate}px)`;
+
+        applyTransform(clientY);
+
+        // FLIP-animate any sibling that got displaced, so it slides instead of jump-cutting
+        itemsIn().forEach(el=>{
+          if (el === item) return;
+          const b = before.get(el);
+          if (!b) return;
+          const a = el.getBoundingClientRect();
+          const dy = b.top - a.top;
+          if (dy){
+            el.style.transition = "none";
+            el.style.transform = `translateY(${dy}px)`;
+            requestAnimationFrame(()=>{
+              el.style.transition = "transform 160ms ease";
+              el.style.transform = "";
+            });
+          }
+        });
       }
 
       function onUp(){
@@ -1044,7 +1074,6 @@
         item.style.zIndex = "";
         item.style.transition = "";
         item.style.touchAction = "";
-        itemsIn().forEach(el=>{ el.style.transition = ""; });
         item.removeEventListener("pointermove", onMove);
         item.removeEventListener("pointerup", onUp);
         item.removeEventListener("pointercancel", onUp);
@@ -1061,18 +1090,20 @@
 
         if (viaHandle || e.pointerType === "mouse"){
           e.preventDefault();
-          beginDrag(e);
+          beginDrag(e.pointerId, e.clientY);
           return;
         }
 
         // Touch, grabbed anywhere else on the card: hold briefly to "pick it up"
         // so a normal scroll swipe isn't hijacked into a drag.
-        const startX = e.clientX, startY = e.clientY, pointerId = e.pointerId;
+        const startX = e.clientX, pointerId = e.pointerId;
+        let lastY = e.clientY;
         let cancelled = false;
 
         function earlyMove(ev){
           if (ev.pointerId !== pointerId) return;
-          if (Math.abs(ev.clientX-startX) > CANCEL_PX || Math.abs(ev.clientY-startY) > CANCEL_PX){
+          lastY = ev.clientY;
+          if (Math.abs(ev.clientX-startX) > CANCEL_PX || Math.abs(ev.clientY-e.clientY) > CANCEL_PX){
             cancelled = true; cleanup();
           }
         }
@@ -1091,7 +1122,7 @@
           cleanup();
           if (!cancelled){
             if (navigator.vibrate) navigator.vibrate(12);
-            beginDrag(e);
+            beginDrag(pointerId, lastY);
           }
         }, HOLD_MS);
       });
@@ -1116,6 +1147,11 @@
       <label>Notes</label>
       <textarea id="mNotes">${escapeHtml(item.notes||"")}</textarea>
       ${hasProjectFields ? `
+      <label>Type</label>
+      <div class="prio-seg" id="mType">
+        <button data-t="piece" class="${item.type==='piece'?'active low':''}">PUNCH ITEM</button>
+        <button data-t="task" class="${item.type==='task'?'active low':''}">TASK</button>
+      </div>
       <label>Priority</label>
       <div class="prio-seg" id="mPrio">
         <button data-p="low" class="${item.priority==='low'?'active low':''}">LOW</button>
@@ -1134,12 +1170,20 @@
     overlay.classList.add("show");
 
     let selectedPrio = item.priority;
+    let selectedType = item.type;
     if (hasProjectFields){
       modalBody.querySelectorAll("#mPrio button").forEach(b=>{
         b.addEventListener("click", ()=>{
           selectedPrio = b.dataset.p;
           modalBody.querySelectorAll("#mPrio button").forEach(x=>x.className="");
           b.className = "active " + selectedPrio;
+        });
+      });
+      modalBody.querySelectorAll("#mType button").forEach(b=>{
+        b.addEventListener("click", ()=>{
+          selectedType = b.dataset.t;
+          modalBody.querySelectorAll("#mType button").forEach(x=>x.className="");
+          b.className = "active low";
         });
       });
     }
@@ -1149,8 +1193,24 @@
       item.title = document.getElementById("mTitle").value.trim() || item.title;
       item.notes = document.getElementById("mNotes").value.trim();
       if (hasProjectFields){
+        const typeChanged = selectedType !== item.type;
+        const priorityBecameHigh = selectedPrio === "high" && item.priority !== "high";
         item.priority = selectedPrio;
         item.project = document.getElementById("mProject").value;
+        item.type = selectedType;
+        // Tasks don't have an "in progress" state — fold it back to open on conversion
+        if (item.type === "task" && item.status === "progress") item.status = "open";
+
+        const siblings = state.items.filter(i=> i.id!==item.id && i.type===item.type && i.project===item.project);
+        if (priorityBecameHigh){
+          // Jump to the top of its list
+          const minOrder = siblings.length ? Math.min(...siblings.map(i=>i.order ?? 0)) : 0;
+          item.order = minOrder - 1;
+        } else if (typeChanged){
+          // Moving between Punch Item / Task lists — append to the end of the new list
+          const maxOrder = siblings.length ? Math.max(...siblings.map(i=>i.order ?? 0)) : -1;
+          item.order = maxOrder + 1;
+        }
       }
       queueSave();
       closeModal();
