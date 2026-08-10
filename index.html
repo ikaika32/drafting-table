@@ -138,7 +138,10 @@
     padding:16px; cursor:pointer; text-align:left; color:var(--paper);
     position:relative;
   }
-  .proj-card.dragging{opacity:0.5; border-color:var(--teal);}
+  .proj-card.dragging{
+    opacity:1; border-color:var(--teal); background:var(--bg-raised);
+    box-shadow:0 10px 28px rgba(0,0,0,0.4); user-select:none;
+  }
   .proj-card .card-handle{
     position:absolute; top:8px; right:8px; touch-action:none; cursor:grab;
     color:var(--paper-dim); font-size:15px; padding:4px; line-height:1;
@@ -180,7 +183,10 @@
     background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius);
     padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start;
   }
-  .ticket.dragging{opacity:0.5; border-color:var(--teal);}
+  .ticket.dragging{
+    opacity:1; border-color:var(--teal); background:var(--bg-raised);
+    box-shadow:0 10px 28px rgba(0,0,0,0.4); transform-origin:center; user-select:none;
+  }
   .drag-handle{
     touch-action:none; cursor:grab; color:var(--paper-dim); font-size:16px; line-height:1;
     padding:4px 2px; flex:0 0 auto; user-select:none; align-self:center;
@@ -860,56 +866,124 @@
   }
 
   // ---------- drag reorder (mouse + touch via Pointer Events) ----------
+  // Grab anywhere on the card (excluding interactive controls). Mouse drags start
+  // immediately; touch requires a brief hold first so normal scrolling still works.
   function enableDragReorder({ container, itemSelector, handleSelector, getId, onReorder }){
     if (!container) return;
-    container.querySelectorAll(handleSelector).forEach(handle=>{
-      handle.addEventListener("pointerdown", (e)=>{
-        const item = handle.closest(itemSelector);
-        if (!item) return;
-        e.preventDefault();
+    const HOLD_MS = 280;
+    const CANCEL_PX = 10;
 
-        let dragging = true;
+    function itemsIn(){ return Array.from(container.querySelectorAll(itemSelector)); }
+
+    function attach(item){
+      let drag = null;
+
+      function beginDrag(e){
+        drag = { pointerId: e.pointerId, startY: e.clientY, translate: 0, startOrder: itemsIn().map(getId) };
         item.classList.add("dragging");
-        try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+        item.style.zIndex = 60;
+        item.style.transition = "none";
+        item.style.touchAction = "none";
+        try{ item.setPointerCapture(e.pointerId); }catch(err){}
+        itemsIn().forEach(el=>{ if (el!==item) el.style.transition = "transform 160ms ease"; });
+        item.addEventListener("pointermove", onMove);
+        item.addEventListener("pointerup", onUp);
+        item.addEventListener("pointercancel", onUp);
+      }
 
-        function currentItems(){
-          return Array.from(container.querySelectorAll(itemSelector));
-        }
+      function onMove(ev){
+        if (!drag || ev.pointerId !== drag.pointerId) return;
+        ev.preventDefault();
+        drag.translate = ev.clientY - drag.startY;
+        item.style.transform = `translateY(${drag.translate}px)`;
 
-        function onMove(ev){
-          if (!dragging) return;
-          item.style.pointerEvents = "none";
-          const el = document.elementFromPoint(ev.clientX, ev.clientY);
-          item.style.pointerEvents = "";
-          const target = el ? el.closest(itemSelector) : null;
-          if (target && target !== item && container.contains(target)){
-            const items = currentItems();
-            const dragIdx = items.indexOf(item);
-            const targetIdx = items.indexOf(target);
-            if (dragIdx < targetIdx){
-              container.insertBefore(item, target.nextSibling);
-            } else {
-              container.insertBefore(item, target);
-            }
+        const dragRect = item.getBoundingClientRect();
+        const dragCenter = dragRect.top + dragRect.height/2;
+        for (const sib of itemsIn()){
+          if (sib === item) continue;
+          const sibRect = sib.getBoundingClientRect();
+          const sibCenter = sibRect.top + sibRect.height/2;
+          const dragPrecedesSib = !!(item.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_FOLLOWING);
+          if (dragPrecedesSib && dragCenter > sibCenter){
+            swap(sib, true); break;
+          } else if (!dragPrecedesSib && dragCenter < sibCenter){
+            swap(sib, false); break;
           }
         }
+      }
 
-        function onUp(ev){
-          dragging = false;
-          item.classList.remove("dragging");
-          handle.removeEventListener("pointermove", onMove);
-          handle.removeEventListener("pointerup", onUp);
-          handle.removeEventListener("pointercancel", onUp);
-          try{ handle.releasePointerCapture(ev.pointerId); }catch(err){}
-          const newOrder = currentItems().map(el=>getId(el));
-          onReorder(newOrder);
+      function swap(sib, movingDown){
+        const beforeTop = item.getBoundingClientRect().top;
+        if (movingDown) container.insertBefore(item, sib.nextSibling);
+        else container.insertBefore(item, sib);
+        item.style.transform = "none";
+        const afterTop = item.getBoundingClientRect().top;
+        drag.translate += (beforeTop - afterTop);
+        item.style.transform = `translateY(${drag.translate}px)`;
+      }
+
+      function onUp(){
+        if (!drag) return;
+        try{ item.releasePointerCapture(drag.pointerId); }catch(err){}
+        item.classList.remove("dragging");
+        item.style.transform = "";
+        item.style.zIndex = "";
+        item.style.transition = "";
+        item.style.touchAction = "";
+        itemsIn().forEach(el=>{ el.style.transition = ""; });
+        item.removeEventListener("pointermove", onMove);
+        item.removeEventListener("pointerup", onUp);
+        item.removeEventListener("pointercancel", onUp);
+        const startOrder = drag.startOrder;
+        const finalOrder = itemsIn().map(getId);
+        drag = null;
+        const changed = startOrder.length !== finalOrder.length || startOrder.some((id,i)=>id!==finalOrder[i]);
+        if (changed) onReorder(finalOrder);
+      }
+
+      item.addEventListener("pointerdown", (e)=>{
+        if (e.target.closest('button, select, a, input, textarea')) return;
+        const viaHandle = handleSelector ? !!e.target.closest(handleSelector) : false;
+
+        if (viaHandle || e.pointerType === "mouse"){
+          e.preventDefault();
+          beginDrag(e);
+          return;
         }
 
-        handle.addEventListener("pointermove", onMove);
-        handle.addEventListener("pointerup", onUp);
-        handle.addEventListener("pointercancel", onUp);
+        // Touch, grabbed anywhere else on the card: hold briefly to "pick it up"
+        // so a normal scroll swipe isn't hijacked into a drag.
+        const startX = e.clientX, startY = e.clientY, pointerId = e.pointerId;
+        let cancelled = false;
+
+        function earlyMove(ev){
+          if (ev.pointerId !== pointerId) return;
+          if (Math.abs(ev.clientX-startX) > CANCEL_PX || Math.abs(ev.clientY-startY) > CANCEL_PX){
+            cancelled = true; cleanup();
+          }
+        }
+        function earlyEnd(){ cancelled = true; cleanup(); }
+        function cleanup(){
+          clearTimeout(timer);
+          item.removeEventListener("pointermove", earlyMove);
+          item.removeEventListener("pointerup", earlyEnd);
+          item.removeEventListener("pointercancel", earlyEnd);
+        }
+        item.addEventListener("pointermove", earlyMove);
+        item.addEventListener("pointerup", earlyEnd);
+        item.addEventListener("pointercancel", earlyEnd);
+
+        const timer = setTimeout(()=>{
+          cleanup();
+          if (!cancelled){
+            if (navigator.vibrate) navigator.vibrate(12);
+            beginDrag(e);
+          }
+        }, HOLD_MS);
       });
-    });
+    }
+
+    itemsIn().forEach(attach);
   }
 
   // ---------- edit modal ----------
