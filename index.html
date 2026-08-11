@@ -54,10 +54,6 @@
   }
   header.top .inner{max-width:920px; margin:0 auto;}
   .brand{display:flex; align-items:baseline; gap:10px; margin-bottom:12px;}
-  .brand .mark{
-    font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--amber);
-    border:1px solid var(--amber-dim); border-radius:4px; padding:3px 6px;
-  }
   .brand h1{font-size:19px; margin:0; font-weight:600; letter-spacing:0.2px;}
   .brand .sub{font-family:var(--mono); font-size:11px; color:var(--paper-dim); margin-left:auto;}
 
@@ -189,11 +185,6 @@
     padding:4px 2px; flex:0 0 auto; user-select:none; align-self:center;
   }
   .drag-handle:active{cursor:grabbing;}
-  .ticket .rev{
-    font-family:var(--mono); font-size:11px; color:var(--paper-dim); border:1px solid var(--line);
-    border-radius:5px; padding:3px 6px; flex:0 0 auto; margin-top:2px;
-  }
-  .ticket.task-item .rev{color:var(--teal); border-color:var(--teal);}
   .ticket .body{flex:1; min-width:0;}
   .ticket .title{font-size:14.5px; font-weight:600; line-height:1.4; cursor:pointer;}
   .ticket .title:hover{text-decoration:underline; text-underline-offset:3px;}
@@ -285,10 +276,6 @@
     width:100%; max-width:340px; background:var(--bg-raised); border:1px solid var(--line);
     border-radius:14px; padding:26px 22px;
   }
-  .auth-box .mark{
-    font-family:var(--mono); font-size:11px; letter-spacing:2px; color:var(--amber);
-    border:1px solid var(--amber-dim); border-radius:4px; padding:3px 6px; display:inline-block; margin-bottom:10px;
-  }
   .auth-box h2{margin:0 0 4px; font-size:19px;}
   .auth-box .tagline{font-family:var(--mono); font-size:11px; color:var(--paper-dim); margin-bottom:18px;}
   .auth-box label{display:block; font-family:var(--mono); font-size:10.5px; color:var(--paper-dim); letter-spacing:0.5px; margin:12px 0 5px; text-transform:uppercase;}
@@ -316,7 +303,6 @@
 
 <div id="authScreen">
   <div class="auth-box">
-    <span class="mark">IK CORP</span>
     <h2 id="authTitle">Sign in</h2>
     <div class="tagline">Drafting Table — Balance × Focus = Progress</div>
     <label>Email</label>
@@ -334,7 +320,6 @@
 <header class="top">
   <div class="inner">
     <div class="brand">
-      <span class="mark">IK CORP</span>
       <h1>Drafting Table</h1>
       <span class="sub"><span class="sync-dot" id="syncDot"></span><span id="syncText">connecting</span><button id="signOutBtn">SIGN OUT</button></span>
     </div>
@@ -683,13 +668,7 @@
     if (!filtered.length){
       html += `<div class="empty"><b>Nothing here yet.</b>Use the capture bar above to add a punch item to this project.</div>`;
     } else {
-      let revCounter = 0;
-      let taskCounter = 0;
-      html += `<div id="workList">` + filtered.map(item=>{
-        if (item.type === "task"){ taskCounter++; return ticketHtml(item, taskCounter); }
-        revCounter++;
-        return ticketHtml(item, revCounter);
-      }).join("") + `</div>`;
+      html += `<div id="workList">` + filtered.map(item=>ticketHtml(item)).join("") + `</div>`;
     }
 
     main.innerHTML = html;
@@ -726,13 +705,11 @@
     }
   }
 
-  function ticketHtml(item, revNum){
+  function ticketHtml(item){
     const isTask = item.type === "task";
-    const revStr = (isTask ? "TASK." : "REV.") + String(revNum).padStart(2,"0");
     return `
       <div class="ticket ${item.status==='done'?'done':''} ${isTask?'task-item':''}" data-id="${item.id}">
         <span class="drag-handle" data-action="drag-handle" title="Drag to reorder">⠿</span>
-        <div class="rev">${revStr}</div>
         <div class="body">
           <div class="title" data-action="open-edit">${escapeHtml(item.title)}</div>
           ${item.notes
@@ -1103,7 +1080,7 @@
 
   function openExportModal(projectName){
     const items = state.items
-      .filter(i=> i.type==="piece" && i.project===projectName)
+      .filter(i=> i.type==="piece" && i.project===projectName && i.status !== "done")
       .sort((a,b)=> (a.order ?? 0) - (b.order ?? 0));
 
     if (!items.length){
