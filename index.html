@@ -2,27 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Drafting Table">
-<meta name="theme-color" content="#141F29">
+<meta name="theme-color" content="#0E1A2B">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap">
 <title>Drafting Table — Idea & Punch List Tracker</title>
 <style>
   :root{
-    --bg:#141F29;
-    --bg-raised:#1C2B38;
-    --bg-card:#20313F;
-    --line:#2E4356;
-    --paper:#EAE3D3;
-    --paper-dim:#9BAAB6;
-    --amber:#ECAF41;
-    --amber-dim:#B9822B;
-    --teal:#5382BB;
+    /* 2026 logo palette: navy ground, set-square blue, gold rule */
+    --bg:#0E1A2B;
+    --bg-raised:#14243A;
+    --bg-card:#192C45;
+    --line:#253B58;
+    --paper:#E8EEF5;
+    --paper-dim:#93A6BC;
+    --amber:#F2C14E;
+    --amber-dim:#C99A2E;
+    --teal:#9CC9E8;
+    --on-accent:#0E1A2B;
     --danger:#C0503B;
     --radius:10px;
     --mono:'IBM Plex Mono', 'SF Mono', Menlo, monospace;
@@ -30,7 +36,8 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   button, select, input, textarea{font-family:inherit; color:inherit;}
-  html,body{margin:0; padding:0; overflow-x:hidden; background:var(--bg); color:var(--paper); font-family:var(--sans); min-height:100vh;}
+  /* clip, not hidden: hidden makes body a scroll box and the sticky header scrolls away */
+  html,body{margin:0; padding:0; overflow-x:clip; background:var(--bg); color:var(--paper); font-family:var(--sans); min-height:100vh;}
   body{
     background-image:
       linear-gradient(var(--line) 1px, transparent 1px),
@@ -39,7 +46,7 @@
     background-attachment: fixed;
     background-color: var(--bg);
   }
-  ::selection{background:var(--amber); color:#141F29;}
+  ::selection{background:var(--amber); color:var(--on-accent);}
 
   a{color:var(--teal);}
 
@@ -47,13 +54,14 @@
 
   header.top{
     position:sticky; top:0; z-index:20;
-    background:rgba(20,31,41,0.92);
+    background:rgba(14,26,43,0.92);
     backdrop-filter:blur(6px);
     border-bottom:1px solid var(--line);
-    padding:14px 16px 12px;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 12px;
   }
   header.top .inner{max-width:920px; margin:0 auto;}
-  .brand{display:flex; align-items:baseline; gap:10px; margin-bottom:12px;}
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .brand .mark{width:28px; height:28px; border-radius:7px; display:block; flex-shrink:0;}
   .brand h1{font-size:19px; margin:0; font-weight:600; letter-spacing:0.2px;}
   .brand .sub{font-family:var(--mono); font-size:11px; color:var(--paper-dim); margin-left:auto;}
 
@@ -74,7 +82,7 @@
     font-family:var(--mono); font-size:12.5px; padding:9px 10px; min-height:44px; max-width:170px;
   }
   .addbtn{
-    background:var(--teal); color:#FFFFFF; border:none; border-radius:8px; font-weight:700;
+    background:var(--teal); color:var(--on-accent); border:none; border-radius:8px; font-weight:700;
     font-size:14px; padding:10px 16px; min-height:44px; cursor:pointer; flex:0 0 auto;
   }
   .addbtn:active{transform:translateY(1px);}
@@ -229,7 +237,7 @@
 
   .toast{
     position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:var(--paper); color:#141F29; font-family:var(--mono); font-size:12.5px;
+    background:var(--paper); color:var(--on-accent); font-family:var(--mono); font-size:12.5px;
     padding:10px 16px; border-radius:8px; opacity:0; transition:all 0.25s ease; z-index:50;
     box-shadow:0 8px 24px rgba(0,0,0,0.4); pointer-events:none;
   }
@@ -237,7 +245,7 @@
 
   /* modal */
   .overlay{
-    position:fixed; inset:0; background:rgba(8,13,18,0.72); z-index:40;
+    position:fixed; inset:0; background:rgba(5,10,18,0.72); z-index:40;
     display:none; align-items:flex-end; justify-content:center;
   }
   .overlay.show{display:flex;}
@@ -259,11 +267,11 @@
   .modal textarea{min-height:80px; resize:vertical; font-family:var(--sans);}
   .modal .modal-actions{display:flex; gap:8px; margin-top:18px;}
   .modal .modal-actions button{flex:1; min-height:44px; border-radius:8px; font-weight:600; cursor:pointer; border:1px solid var(--line);}
-  .modal .save{background:var(--teal); color:#FFFFFF; border:none;}
+  .modal .save{background:var(--teal); color:var(--on-accent); border:none;}
   .modal .cancel{background:transparent; color:var(--paper-dim);}
   .prio-seg{display:flex; gap:6px;}
   .prio-seg button{flex:1; padding:9px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--paper-dim); font-family:var(--mono); font-size:11px; cursor:pointer;}
-  .prio-seg button.active.low{background:var(--teal); color:#FFFFFF; border-color:var(--teal);}
+  .prio-seg button.active.low{background:var(--teal); color:var(--on-accent); border-color:var(--teal);}
   .prio-seg button.active.med{background:var(--amber); color:#0F2B50; border-color:var(--amber);}
   .prio-seg button.active.high{background:var(--danger); color:#FFFFFF; border-color:var(--danger);}
 
@@ -287,7 +295,7 @@
     border-radius:8px; padding:11px; font-size:16px; font-family:var(--sans);
   }
   .auth-box .authbtn{
-    width:100%; margin-top:18px; background:var(--teal); color:#FFFFFF; border:none; border-radius:8px;
+    width:100%; margin-top:18px; background:var(--teal); color:var(--on-accent); border:none; border-radius:8px;
     font-weight:700; font-size:14.5px; padding:12px; min-height:44px; cursor:pointer;
   }
   .auth-box .authbtn:disabled{opacity:0.5;}
@@ -323,6 +331,7 @@
 <header class="top">
   <div class="inner">
     <div class="brand">
+      <img class="mark" src="favicon.svg" alt="">
       <h1>Drafting Table</h1>
       <span class="sub"><span class="sync-dot" id="syncDot"></span><span id="syncText">connecting</span><button id="signOutBtn">SIGN OUT</button></span>
     </div>

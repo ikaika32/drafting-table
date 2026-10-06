@@ -1,4 +1,4 @@
-const CACHE_NAME = "drafting-table-v29";
+const CACHE_NAME = "drafting-table-v30";
 const SHELL_FILES = [
   "./index.html",
   "./manifest.json",
@@ -6,7 +6,9 @@ const SHELL_FILES = [
   "./icon-512.png",
   "./favicon.ico",
   "./favicon-32.png",
-  "./apple-touch-icon.png"
+  "./apple-touch-icon.png",
+  "./icon-maskable-512.png",
+  "./favicon.svg"
 ];
 
 self.addEventListener("install", (event) => {
